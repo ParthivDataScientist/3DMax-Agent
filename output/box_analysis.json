@@ -1,0 +1,1485 @@
+{
+  "input": {
+    "source_path": "D:\\Desktop\\Agent\\generated_objs\\box.obj",
+    "file_name": "box.obj",
+    "mesh_name": "box",
+    "file_type": "obj",
+    "unit": "mm",
+    "source_geometry": {
+      "source_type": "scene",
+      "geometry_count": 1,
+      "geometry_names": [
+        "box.obj"
+      ]
+    }
+  },
+  "validation": {
+    "is_valid_mesh": true,
+    "is_watertight": true,
+    "is_winding_consistent": true,
+    "is_volume": true,
+    "vertex_count": 8,
+    "edge_count": 18,
+    "feature_edge_count": 12,
+    "face_count": 12
+  },
+  "overall_dimensions": {
+    "x": 1200.0,
+    "y": 600.0,
+    "z": 900.0,
+    "length": 1200.0,
+    "width": 600.0,
+    "height": 900.0
+  },
+  "bounding_box": {
+    "min": [
+      -600.0,
+      -300.0,
+      -450.0
+    ],
+    "max": [
+      600.0,
+      300.0,
+      450.0
+    ],
+    "size": [
+      1200.0,
+      600.0,
+      900.0
+    ],
+    "centroid": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "extents_diagonal": 1615.549442
+  },
+  "mesh_metrics": {
+    "surface_area": 4680000.0,
+    "volume": 648000000.0,
+    "center_of_mass": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "mesh_centroid": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "vertices": [
+    {
+      "index": 0,
+      "coordinates": [
+        -600.0,
+        -300.0,
+        -450.0
+      ]
+    },
+    {
+      "index": 1,
+      "coordinates": [
+        -600.0,
+        -300.0,
+        450.0
+      ]
+    },
+    {
+      "index": 2,
+      "coordinates": [
+        -600.0,
+        300.0,
+        -450.0
+      ]
+    },
+    {
+      "index": 3,
+      "coordinates": [
+        -600.0,
+        300.0,
+        450.0
+      ]
+    },
+    {
+      "index": 4,
+      "coordinates": [
+        600.0,
+        -300.0,
+        -450.0
+      ]
+    },
+    {
+      "index": 5,
+      "coordinates": [
+        600.0,
+        -300.0,
+        450.0
+      ]
+    },
+    {
+      "index": 6,
+      "coordinates": [
+        600.0,
+        300.0,
+        -450.0
+      ]
+    },
+    {
+      "index": 7,
+      "coordinates": [
+        600.0,
+        300.0,
+        450.0
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "index": 0,
+      "vertex_indices": [
+        0,
+        1
+      ],
+      "length": 900.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 1,
+      "vertex_indices": [
+        0,
+        2
+      ],
+      "length": 600.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 2,
+      "vertex_indices": [
+        0,
+        3
+      ],
+      "length": 1081.665383,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 0.0,
+      "is_feature_edge": false
+    },
+    {
+      "index": 3,
+      "vertex_indices": [
+        1,
+        3
+      ],
+      "length": 600.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 4,
+      "vertex_indices": [
+        2,
+        3
+      ],
+      "length": 900.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 5,
+      "vertex_indices": [
+        0,
+        4
+      ],
+      "length": 1200.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 6,
+      "vertex_indices": [
+        1,
+        4
+      ],
+      "length": 1500.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 0.0,
+      "is_feature_edge": false
+    },
+    {
+      "index": 7,
+      "vertex_indices": [
+        2,
+        4
+      ],
+      "length": 1341.640786,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 0.0,
+      "is_feature_edge": false
+    },
+    {
+      "index": 8,
+      "vertex_indices": [
+        1,
+        5
+      ],
+      "length": 1200.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 9,
+      "vertex_indices": [
+        4,
+        5
+      ],
+      "length": 900.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 10,
+      "vertex_indices": [
+        2,
+        6
+      ],
+      "length": 1200.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 11,
+      "vertex_indices": [
+        4,
+        6
+      ],
+      "length": 600.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 12,
+      "vertex_indices": [
+        5,
+        6
+      ],
+      "length": 1081.665383,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 0.0,
+      "is_feature_edge": false
+    },
+    {
+      "index": 13,
+      "vertex_indices": [
+        1,
+        7
+      ],
+      "length": 1341.640786,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 0.0,
+      "is_feature_edge": false
+    },
+    {
+      "index": 14,
+      "vertex_indices": [
+        2,
+        7
+      ],
+      "length": 1500.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 0.0,
+      "is_feature_edge": false
+    },
+    {
+      "index": 15,
+      "vertex_indices": [
+        3,
+        7
+      ],
+      "length": 1200.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 16,
+      "vertex_indices": [
+        5,
+        7
+      ],
+      "length": 600.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    },
+    {
+      "index": 17,
+      "vertex_indices": [
+        6,
+        7
+      ],
+      "length": 900.0,
+      "adjacent_face_count": 2,
+      "is_boundary": false,
+      "adjacent_face_angle_degrees": 90.0,
+      "is_feature_edge": true
+    }
+  ],
+  "faces": [
+    {
+      "index": 0,
+      "vertex_indices": [
+        1,
+        3,
+        0
+      ],
+      "normal": [
+        -1.0,
+        0.0,
+        -0.0
+      ],
+      "centroid": [
+        -600.0,
+        -100.0,
+        150.0
+      ],
+      "area": 270000.0
+    },
+    {
+      "index": 1,
+      "vertex_indices": [
+        4,
+        1,
+        0
+      ],
+      "normal": [
+        -0.0,
+        -1.0,
+        -0.0
+      ],
+      "centroid": [
+        -200.0,
+        -300.0,
+        -150.0
+      ],
+      "area": 540000.0
+    },
+    {
+      "index": 2,
+      "vertex_indices": [
+        0,
+        3,
+        2
+      ],
+      "normal": [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      "centroid": [
+        -600.0,
+        100.0,
+        -150.0
+      ],
+      "area": 270000.0
+    },
+    {
+      "index": 3,
+      "vertex_indices": [
+        2,
+        4,
+        0
+      ],
+      "normal": [
+        -0.0,
+        -0.0,
+        -1.0
+      ],
+      "centroid": [
+        -200.0,
+        -100.0,
+        -450.0
+      ],
+      "area": 360000.0
+    },
+    {
+      "index": 4,
+      "vertex_indices": [
+        1,
+        7,
+        3
+      ],
+      "normal": [
+        0.0,
+        -0.0,
+        1.0
+      ],
+      "centroid": [
+        -200.0,
+        100.0,
+        450.0
+      ],
+      "area": 360000.0
+    },
+    {
+      "index": 5,
+      "vertex_indices": [
+        5,
+        1,
+        4
+      ],
+      "normal": [
+        -0.0,
+        -1.0,
+        -0.0
+      ],
+      "centroid": [
+        200.0,
+        -300.0,
+        150.0
+      ],
+      "area": 540000.0
+    },
+    {
+      "index": 6,
+      "vertex_indices": [
+        5,
+        7,
+        1
+      ],
+      "normal": [
+        0.0,
+        -0.0,
+        1.0
+      ],
+      "centroid": [
+        200.0,
+        -100.0,
+        450.0
+      ],
+      "area": 360000.0
+    },
+    {
+      "index": 7,
+      "vertex_indices": [
+        3,
+        7,
+        2
+      ],
+      "normal": [
+        -0.0,
+        1.0,
+        0.0
+      ],
+      "centroid": [
+        -200.0,
+        300.0,
+        150.0
+      ],
+      "area": 540000.0
+    },
+    {
+      "index": 8,
+      "vertex_indices": [
+        6,
+        4,
+        2
+      ],
+      "normal": [
+        -0.0,
+        -0.0,
+        -1.0
+      ],
+      "centroid": [
+        200.0,
+        100.0,
+        -450.0
+      ],
+      "area": 360000.0
+    },
+    {
+      "index": 9,
+      "vertex_indices": [
+        2,
+        7,
+        6
+      ],
+      "normal": [
+        -0.0,
+        1.0,
+        0.0
+      ],
+      "centroid": [
+        200.0,
+        300.0,
+        -150.0
+      ],
+      "area": 540000.0
+    },
+    {
+      "index": 10,
+      "vertex_indices": [
+        6,
+        5,
+        4
+      ],
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "centroid": [
+        600.0,
+        -100.0,
+        -150.0
+      ],
+      "area": 270000.0
+    },
+    {
+      "index": 11,
+      "vertex_indices": [
+        7,
+        5,
+        6
+      ],
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "centroid": [
+        600.0,
+        100.0,
+        150.0
+      ],
+      "area": 270000.0
+    }
+  ],
+  "views": {
+    "front": {
+      "plane": "XZ",
+      "horizontal_axis": "x",
+      "vertical_axis": "z",
+      "depth_axis": "y",
+      "dimensions": {
+        "width": 1200.0,
+        "height": 900.0,
+        "depth": 600.0
+      }
+    },
+    "top": {
+      "plane": "XY",
+      "horizontal_axis": "x",
+      "vertical_axis": "y",
+      "depth_axis": "z",
+      "dimensions": {
+        "width": 1200.0,
+        "height": 600.0,
+        "depth": 900.0
+      }
+    },
+    "side": {
+      "plane": "YZ",
+      "horizontal_axis": "y",
+      "vertical_axis": "z",
+      "depth_axis": "x",
+      "dimensions": {
+        "width": 600.0,
+        "height": 900.0,
+        "depth": 1200.0
+      }
+    }
+  },
+  "component_summary": {
+    "component_count": 1,
+    "shape_counts": {
+      "box": 1
+    },
+    "type_counts": {
+      "block": 1
+    },
+    "orientation_counts": {
+      "horizontal": 1
+    }
+  },
+  "components": [
+    {
+      "id": 1,
+      "type": "block",
+      "shape": "box",
+      "orientation": "horizontal",
+      "semantic_role": "structure",
+      "dimensions": {
+        "length": 1200.0,
+        "width": 600.0,
+        "height": 900.0,
+        "thickness": 600.0,
+        "aspect_ratio": 2.0,
+        "height_to_length_ratio": 0.75,
+        "axis_aligned_size": [
+          1200.0,
+          600.0,
+          900.0
+        ]
+      },
+      "dominant_axis": {
+        "vector": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "tilt_from_vertical_degrees": 90.0
+      },
+      "orientation_reference": {
+        "axis_name": "height_axis",
+        "axis_vector": [
+          -0.0,
+          0.0,
+          1.0
+        ],
+        "tilt_from_vertical_degrees": 0.0
+      },
+      "oriented_frame": {
+        "centroid": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "axes": {
+          "length_axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "width_axis": [
+            0.0,
+            -1.0,
+            -0.0
+          ],
+          "height_axis": [
+            -0.0,
+            0.0,
+            1.0
+          ]
+        },
+        "extents": {
+          "length": 1200.0,
+          "width": 600.0,
+          "height": 900.0
+        },
+        "principal_extents_sorted": [
+          1200.0,
+          900.0,
+          600.0
+        ]
+      },
+      "analysis": {
+        "major_planar_region_count": 6,
+        "major_planar_area_ratio": 1.0,
+        "flatness_ratio": 0.5,
+        "secondary_axis_similarity": 0.333333,
+        "spherical_extent_ratio": 0.5,
+        "centroid_radius_cv": 0.0,
+        "axis_radius_cv": 0.0,
+        "mean_face_adjacency_angle_degrees": 60.0,
+        "std_face_adjacency_angle_degrees": 42.426407,
+        "semantic_height_axis_alignment": 1.0
+      },
+      "vertices": [
+        {
+          "index": 0,
+          "coordinates": [
+            -600.0,
+            -300.0,
+            -450.0
+          ]
+        },
+        {
+          "index": 1,
+          "coordinates": [
+            -600.0,
+            -300.0,
+            450.0
+          ]
+        },
+        {
+          "index": 2,
+          "coordinates": [
+            -600.0,
+            300.0,
+            -450.0
+          ]
+        },
+        {
+          "index": 3,
+          "coordinates": [
+            -600.0,
+            300.0,
+            450.0
+          ]
+        },
+        {
+          "index": 4,
+          "coordinates": [
+            600.0,
+            -300.0,
+            -450.0
+          ]
+        },
+        {
+          "index": 5,
+          "coordinates": [
+            600.0,
+            -300.0,
+            450.0
+          ]
+        },
+        {
+          "index": 6,
+          "coordinates": [
+            600.0,
+            300.0,
+            -450.0
+          ]
+        },
+        {
+          "index": 7,
+          "coordinates": [
+            600.0,
+            300.0,
+            450.0
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "index": 0,
+          "vertex_indices": [
+            0,
+            1
+          ],
+          "length": 900.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 1,
+          "vertex_indices": [
+            0,
+            2
+          ],
+          "length": 600.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 2,
+          "vertex_indices": [
+            0,
+            3
+          ],
+          "length": 1081.665383,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 0.0,
+          "is_feature_edge": false
+        },
+        {
+          "index": 3,
+          "vertex_indices": [
+            1,
+            3
+          ],
+          "length": 600.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 4,
+          "vertex_indices": [
+            2,
+            3
+          ],
+          "length": 900.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 5,
+          "vertex_indices": [
+            0,
+            4
+          ],
+          "length": 1200.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 6,
+          "vertex_indices": [
+            1,
+            4
+          ],
+          "length": 1500.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 0.0,
+          "is_feature_edge": false
+        },
+        {
+          "index": 7,
+          "vertex_indices": [
+            2,
+            4
+          ],
+          "length": 1341.640786,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 0.0,
+          "is_feature_edge": false
+        },
+        {
+          "index": 8,
+          "vertex_indices": [
+            1,
+            5
+          ],
+          "length": 1200.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 9,
+          "vertex_indices": [
+            4,
+            5
+          ],
+          "length": 900.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 10,
+          "vertex_indices": [
+            2,
+            6
+          ],
+          "length": 1200.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 11,
+          "vertex_indices": [
+            4,
+            6
+          ],
+          "length": 600.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 12,
+          "vertex_indices": [
+            5,
+            6
+          ],
+          "length": 1081.665383,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 0.0,
+          "is_feature_edge": false
+        },
+        {
+          "index": 13,
+          "vertex_indices": [
+            1,
+            7
+          ],
+          "length": 1341.640786,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 0.0,
+          "is_feature_edge": false
+        },
+        {
+          "index": 14,
+          "vertex_indices": [
+            2,
+            7
+          ],
+          "length": 1500.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 0.0,
+          "is_feature_edge": false
+        },
+        {
+          "index": 15,
+          "vertex_indices": [
+            3,
+            7
+          ],
+          "length": 1200.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 16,
+          "vertex_indices": [
+            5,
+            7
+          ],
+          "length": 600.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        },
+        {
+          "index": 17,
+          "vertex_indices": [
+            6,
+            7
+          ],
+          "length": 900.0,
+          "adjacent_face_count": 2,
+          "is_boundary": false,
+          "adjacent_face_angle_degrees": 90.0,
+          "is_feature_edge": true
+        }
+      ],
+      "planar_regions": [
+        {
+          "face_indices": [
+            1,
+            5
+          ],
+          "face_count": 2,
+          "area": 1080000.0,
+          "area_ratio": 0.230769,
+          "average_normal": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "plane_normal": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "centroid": [
+            0.0,
+            -300.0,
+            0.0
+          ],
+          "max_plane_distance": 0.0,
+          "orientation": "vertical",
+          "tilt_from_vertical_degrees": 90.0,
+          "id": 1
+        },
+        {
+          "face_indices": [
+            7,
+            9
+          ],
+          "face_count": 2,
+          "area": 1080000.0,
+          "area_ratio": 0.230769,
+          "average_normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "plane_normal": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "centroid": [
+            0.0,
+            300.0,
+            0.0
+          ],
+          "max_plane_distance": 0.0,
+          "orientation": "vertical",
+          "tilt_from_vertical_degrees": 90.0,
+          "id": 2
+        },
+        {
+          "face_indices": [
+            3,
+            8
+          ],
+          "face_count": 2,
+          "area": 720000.0,
+          "area_ratio": 0.153846,
+          "average_normal": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "plane_normal": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "centroid": [
+            0.0,
+            0.0,
+            -450.0
+          ],
+          "max_plane_distance": 0.0,
+          "orientation": "horizontal",
+          "tilt_from_vertical_degrees": 0.0,
+          "id": 3
+        },
+        {
+          "face_indices": [
+            4,
+            6
+          ],
+          "face_count": 2,
+          "area": 720000.0,
+          "area_ratio": 0.153846,
+          "average_normal": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "plane_normal": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "centroid": [
+            0.0,
+            0.0,
+            450.0
+          ],
+          "max_plane_distance": 0.0,
+          "orientation": "horizontal",
+          "tilt_from_vertical_degrees": 0.0,
+          "id": 4
+        },
+        {
+          "face_indices": [
+            0,
+            2
+          ],
+          "face_count": 2,
+          "area": 540000.0,
+          "area_ratio": 0.115385,
+          "average_normal": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "plane_normal": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "centroid": [
+            -600.0,
+            0.0,
+            0.0
+          ],
+          "max_plane_distance": 0.0,
+          "orientation": "vertical",
+          "tilt_from_vertical_degrees": 90.0,
+          "id": 5
+        },
+        {
+          "face_indices": [
+            10,
+            11
+          ],
+          "face_count": 2,
+          "area": 540000.0,
+          "area_ratio": 0.115385,
+          "average_normal": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "plane_normal": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "centroid": [
+            600.0,
+            0.0,
+            0.0
+          ],
+          "max_plane_distance": 0.0,
+          "orientation": "vertical",
+          "tilt_from_vertical_degrees": 90.0,
+          "id": 6
+        }
+      ],
+      "faces": [
+        {
+          "index": 0,
+          "vertex_indices": [
+            1,
+            3,
+            0
+          ],
+          "normal": [
+            -1.0,
+            0.0,
+            -0.0
+          ],
+          "centroid": [
+            -600.0,
+            -100.0,
+            150.0
+          ],
+          "area": 270000.0
+        },
+        {
+          "index": 1,
+          "vertex_indices": [
+            4,
+            1,
+            0
+          ],
+          "normal": [
+            -0.0,
+            -1.0,
+            -0.0
+          ],
+          "centroid": [
+            -200.0,
+            -300.0,
+            -150.0
+          ],
+          "area": 540000.0
+        },
+        {
+          "index": 2,
+          "vertex_indices": [
+            0,
+            3,
+            2
+          ],
+          "normal": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "centroid": [
+            -600.0,
+            100.0,
+            -150.0
+          ],
+          "area": 270000.0
+        },
+        {
+          "index": 3,
+          "vertex_indices": [
+            2,
+            4,
+            0
+          ],
+          "normal": [
+            -0.0,
+            -0.0,
+            -1.0
+          ],
+          "centroid": [
+            -200.0,
+            -100.0,
+            -450.0
+          ],
+          "area": 360000.0
+        },
+        {
+          "index": 4,
+          "vertex_indices": [
+            1,
+            7,
+            3
+          ],
+          "normal": [
+            0.0,
+            -0.0,
+            1.0
+          ],
+          "centroid": [
+            -200.0,
+            100.0,
+            450.0
+          ],
+          "area": 360000.0
+        },
+        {
+          "index": 5,
+          "vertex_indices": [
+            5,
+            1,
+            4
+          ],
+          "normal": [
+            -0.0,
+            -1.0,
+            -0.0
+          ],
+          "centroid": [
+            200.0,
+            -300.0,
+            150.0
+          ],
+          "area": 540000.0
+        },
+        {
+          "index": 6,
+          "vertex_indices": [
+            5,
+            7,
+            1
+          ],
+          "normal": [
+            0.0,
+            -0.0,
+            1.0
+          ],
+          "centroid": [
+            200.0,
+            -100.0,
+            450.0
+          ],
+          "area": 360000.0
+        },
+        {
+          "index": 7,
+          "vertex_indices": [
+            3,
+            7,
+            2
+          ],
+          "normal": [
+            -0.0,
+            1.0,
+            0.0
+          ],
+          "centroid": [
+            -200.0,
+            300.0,
+            150.0
+          ],
+          "area": 540000.0
+        },
+        {
+          "index": 8,
+          "vertex_indices": [
+            6,
+            4,
+            2
+          ],
+          "normal": [
+            -0.0,
+            -0.0,
+            -1.0
+          ],
+          "centroid": [
+            200.0,
+            100.0,
+            -450.0
+          ],
+          "area": 360000.0
+        },
+        {
+          "index": 9,
+          "vertex_indices": [
+            2,
+            7,
+            6
+          ],
+          "normal": [
+            -0.0,
+            1.0,
+            0.0
+          ],
+          "centroid": [
+            200.0,
+            300.0,
+            -150.0
+          ],
+          "area": 540000.0
+        },
+        {
+          "index": 10,
+          "vertex_indices": [
+            6,
+            5,
+            4
+          ],
+          "normal": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "centroid": [
+            600.0,
+            -100.0,
+            -150.0
+          ],
+          "area": 270000.0
+        },
+        {
+          "index": 11,
+          "vertex_indices": [
+            7,
+            5,
+            6
+          ],
+          "normal": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "centroid": [
+            600.0,
+            100.0,
+            150.0
+          ],
+          "area": 270000.0
+        }
+      ],
+      "geometry": {
+        "validation": {
+          "is_valid_mesh": true,
+          "is_watertight": true,
+          "is_winding_consistent": true,
+          "is_volume": true,
+          "vertex_count": 8,
+          "edge_count": 18,
+          "feature_edge_count": 12,
+          "face_count": 12
+        },
+        "bounding_box": {
+          "min": [
+            -600.0,
+            -300.0,
+            -450.0
+          ],
+          "max": [
+            600.0,
+            300.0,
+            450.0
+          ],
+          "size": [
+            1200.0,
+            600.0,
+            900.0
+          ],
+          "centroid": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "extents_diagonal": 1615.549442
+        },
+        "mesh_metrics": {
+          "surface_area": 4680000.0,
+          "volume": 648000000.0,
+          "center_of_mass": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "mesh_centroid": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "views": {
+          "front": {
+            "plane": "XZ",
+            "horizontal_axis": "x",
+            "vertical_axis": "z",
+            "depth_axis": "y",
+            "dimensions": {
+              "width": 1200.0,
+              "height": 900.0,
+              "depth": 600.0
+            }
+          },
+          "top": {
+            "plane": "XY",
+            "horizontal_axis": "x",
+            "vertical_axis": "y",
+            "depth_axis": "z",
+            "dimensions": {
+              "width": 1200.0,
+              "height": 600.0,
+              "depth": 900.0
+            }
+          },
+          "side": {
+            "plane": "YZ",
+            "horizontal_axis": "y",
+            "vertical_axis": "z",
+            "depth_axis": "x",
+            "dimensions": {
+              "width": 600.0,
+              "height": 900.0,
+              "depth": 1200.0
+            }
+          }
+        }
+      }
+    }
+  ]
+}
