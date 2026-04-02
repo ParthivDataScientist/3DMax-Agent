@@ -12,11 +12,19 @@ from typing import Any
 import numpy as np
 import trimesh
 
+from edge_detection import extract_candidate_edges, extract_silhouette_edges, select_visible_edges
+from projection import VIEW_DEFINITIONS, build_projected_view
+
 
 PRECISION = 6
 UNIT = "mm"
+SOURCE_UNIT_SCALES = {
+    "mm": 1.0,
+    "cm": 10.0,
+    "m": 1000.0,
+}
 EPSILON = 1e-9
-FEATURE_EDGE_ANGLE_DEGREES = 1.0
+FEATURE_EDGE_ANGLE_DEGREES = 30.0
 PLANAR_CLUSTER_NORMAL_DEGREES = 7.5
 PLANAR_DISTANCE_RATIO = 0.01
 MAJOR_PLANAR_REGION_RATIO = 0.05
@@ -98,11 +106,41 @@ def classify_surface_orientation(surface_normal: np.ndarray) -> tuple[str, float
     return "angled", tilt_degrees
 
 
-def build_error_payload(obj_path: Path | None, code: str, message: str) -> dict[str, Any]:
+def resolve_unit_scale(source_unit: str) -> float:
+    normalized_unit = source_unit.strip().lower()
+    if normalized_unit not in SOURCE_UNIT_SCALES:
+        raise ExtractionError(
+            "unsupported_unit",
+            f"Unsupported source unit '{source_unit}'. Expected one of: {', '.join(SOURCE_UNIT_SCALES)}.",
+        )
+    return SOURCE_UNIT_SCALES[normalized_unit]
+
+
+def scale_mesh_to_mm(mesh: trimesh.Trimesh, source_unit: str) -> trimesh.Trimesh:
+    """Return a mesh scaled into millimeters."""
+    scale_factor = resolve_unit_scale(source_unit)
+    if abs(scale_factor - 1.0) <= EPSILON:
+        return mesh
+
+    scaled_mesh = mesh.copy()
+    scaled_mesh.apply_scale(scale_factor)
+    return scaled_mesh
+
+
+def build_error_payload(
+    obj_path: Path | None,
+    code: str,
+    message: str,
+    *,
+    source_unit: str = UNIT,
+) -> dict[str, Any]:
     return {
         "input": {
             "source_path": str(obj_path.resolve()) if obj_path else None,
             "unit": UNIT,
+            "source_unit": source_unit,
+            "normalized_unit": UNIT,
+            "unit_scale_to_mm": SOURCE_UNIT_SCALES.get(source_unit, 1.0),
         },
         "error": {
             "code": code,
@@ -245,39 +283,25 @@ def build_vertices(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
 
 
 def build_edges(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
-    vertices = mesh.vertices
-    unique_edges = mesh.edges_unique
-
-    if len(unique_edges) == 0:
-        return []
-
-    lengths = np.linalg.norm(vertices[unique_edges[:, 1]] - vertices[unique_edges[:, 0]], axis=1)
-    adjacency_counts = np.bincount(mesh.edges_unique_inverse, minlength=len(unique_edges))
-
-    adjacency_angles: dict[tuple[int, int], float] = {}
-    for edge, angle in zip(mesh.face_adjacency_edges, mesh.face_adjacency_angles):
-        key = tuple(sorted((int(edge[0]), int(edge[1]))))
-        adjacency_angles[key] = round_number(math.degrees(float(angle))) or 0.0
+    candidate_edges = extract_candidate_edges(mesh, FEATURE_EDGE_ANGLE_DEGREES, precision=PRECISION)
+    vertices = np.asarray(mesh.vertices, dtype=float)
 
     return [
         {
-            "index": index,
-            "vertex_indices": [int(edge[0]), int(edge[1])],
-            "length": round_number(length),
-            "adjacent_face_count": int(adjacency_counts[index]),
-            "is_boundary": bool(adjacency_counts[index] == 1),
-            "adjacent_face_angle_degrees": adjacency_angles.get(
-                tuple(sorted((int(edge[0]), int(edge[1]))))
-            ),
-            "is_feature_edge": bool(
-                adjacency_counts[index] == 1
-                or (
-                    adjacency_angles.get(tuple(sorted((int(edge[0]), int(edge[1])))), 0.0)
-                    > FEATURE_EDGE_ANGLE_DEGREES
+            "index": int(record["index"]),
+            "vertex_indices": [int(record["vertex_indices"][0]), int(record["vertex_indices"][1])],
+            "length": round_number(
+                np.linalg.norm(
+                    vertices[record["vertex_indices"][1]] - vertices[record["vertex_indices"][0]]
                 )
             ),
+            "adjacent_face_count": int(record["adjacent_face_count"]),
+            "adjacent_face_indices": [int(face_index) for face_index in record["adjacent_face_indices"]],
+            "is_boundary": bool(record["is_boundary"]),
+            "adjacent_face_angle_degrees": record["adjacent_face_angle_degrees"],
+            "is_feature_edge": bool(record["is_boundary"] or record["is_sharp"]),
         }
-        for index, (edge, length) in enumerate(zip(unique_edges, lengths))
+        for record in candidate_edges
     ]
 
 
@@ -295,42 +319,51 @@ def build_faces(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
     ]
 
 
-def build_views(size: np.ndarray) -> dict[str, Any]:
+def build_view_dimensions(size: np.ndarray) -> dict[str, dict[str, float | None]]:
     return {
         "front": {
-            "plane": "XZ",
-            "horizontal_axis": "x",
-            "vertical_axis": "z",
-            "depth_axis": "y",
-            "dimensions": {
-                "width": round_number(size[0]),
-                "height": round_number(size[2]),
-                "depth": round_number(size[1]),
-            },
+            "width": round_number(size[0]),
+            "height": round_number(size[2]),
+            "depth": round_number(size[1]),
         },
         "top": {
-            "plane": "XY",
-            "horizontal_axis": "x",
-            "vertical_axis": "y",
-            "depth_axis": "z",
-            "dimensions": {
-                "width": round_number(size[0]),
-                "height": round_number(size[1]),
-                "depth": round_number(size[2]),
-            },
+            "width": round_number(size[0]),
+            "height": round_number(size[1]),
+            "depth": round_number(size[2]),
         },
         "side": {
-            "plane": "YZ",
-            "horizontal_axis": "y",
-            "vertical_axis": "z",
-            "depth_axis": "x",
-            "dimensions": {
-                "width": round_number(size[1]),
-                "height": round_number(size[2]),
-                "depth": round_number(size[0]),
-            },
+            "width": round_number(size[1]),
+            "height": round_number(size[2]),
+            "depth": round_number(size[0]),
         },
     }
+
+
+def generate_orthographic_projections(mesh: trimesh.Trimesh) -> dict[str, Any]:
+    bounds = np.asarray(mesh.bounds, dtype=float)
+    size = bounds[1] - bounds[0]
+    dimensions_by_view = build_view_dimensions(size)
+    candidate_edges = extract_candidate_edges(mesh, FEATURE_EDGE_ANGLE_DEGREES, precision=PRECISION)
+    projected_views: dict[str, Any] = {}
+
+    for view_name, definition in VIEW_DEFINITIONS.items():
+        silhouette_edges = extract_silhouette_edges(
+            mesh,
+            definition["view_direction"],
+            epsilon=EPSILON,
+        )
+        visible_edges = select_visible_edges(candidate_edges, silhouette_edges)
+        view_payload = build_projected_view(
+            mesh,
+            visible_edges,
+            view_name,
+            precision=PRECISION,
+            epsilon=EPSILON,
+        )
+        view_payload["dimensions"] = dimensions_by_view[view_name]
+        projected_views[view_name] = view_payload
+
+    return projected_views
 
 
 def compute_principal_frame(mesh: trimesh.Trimesh) -> dict[str, Any]:
@@ -701,6 +734,7 @@ def build_mesh_measurements(mesh: trimesh.Trimesh) -> dict[str, Any]:
     size = maximum - minimum
     volume = round_number(mesh.volume) if mesh.is_volume else None
     edges = build_edges(mesh)
+    views = generate_orthographic_projections(mesh)
 
     return {
         "validation": {
@@ -737,7 +771,7 @@ def build_mesh_measurements(mesh: trimesh.Trimesh) -> dict[str, Any]:
         "vertices": build_vertices(mesh),
         "edges": edges,
         "faces": build_faces(mesh),
-        "views": build_views(size),
+        "views": views,
     }
 
 
@@ -845,9 +879,12 @@ def summarize_components(components: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def extract_measurements(obj_path: str) -> dict[str, Any]:
+def extract_measurements(obj_path: str, source_unit: str = UNIT) -> dict[str, Any]:
     path = Path(obj_path).expanduser()
     mesh, mesh_source = load_mesh(path)
+    source_unit_normalized = source_unit.strip().lower()
+    mesh = scale_mesh_to_mm(mesh, source_unit_normalized)
+    unit_scale_to_mm = resolve_unit_scale(source_unit_normalized)
 
     payload = {
         "input": {
@@ -856,6 +893,9 @@ def extract_measurements(obj_path: str) -> dict[str, Any]:
             "mesh_name": path.stem,
             "file_type": path.suffix.lower().lstrip("."),
             "unit": UNIT,
+            "source_unit": source_unit_normalized,
+            "normalized_unit": UNIT,
+            "unit_scale_to_mm": unit_scale_to_mm,
             "source_geometry": mesh_source,
         },
     }
@@ -870,32 +910,51 @@ def extract_measurements(obj_path: str) -> dict[str, Any]:
     return payload
 
 
+def normalize_obj_path_argument(path_parts: list[str]) -> Path:
+    """Join CLI path tokens so unquoted OBJ paths with spaces still work."""
+    return Path(" ".join(path_parts)).expanduser()
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Extract measurement-ready geometric and semantic data from an OBJ mesh."
     )
-    parser.add_argument("obj_path", help="Path to the Wavefront OBJ file to analyze.")
+    parser.add_argument("obj_path", nargs="+", help="Path to the Wavefront OBJ file to analyze.")
+    parser.add_argument(
+        "--source-unit",
+        default=UNIT,
+        choices=sorted(SOURCE_UNIT_SCALES.keys()),
+        help="Source unit used in the OBJ file. Geometry is normalized to millimeters.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    obj_path = Path(args.obj_path).expanduser()
+    obj_path = normalize_obj_path_argument(args.obj_path)
 
     try:
-        payload = extract_measurements(str(obj_path))
+        payload = extract_measurements(str(obj_path), source_unit=args.source_unit)
         output_path = build_output_path(obj_path)
         write_payload_to_file(output_path, payload)
     except ExtractionError as exc:
         output_path = build_output_path(obj_path, suffix="_error.json")
-        write_payload_to_file(output_path, build_error_payload(obj_path, exc.code, exc.message))
+        write_payload_to_file(
+            output_path,
+            build_error_payload(obj_path, exc.code, exc.message, source_unit=args.source_unit),
+        )
         print(f"Saved error output to {output_path}")
         return 1
     except Exception as exc:  # pragma: no cover - unexpected runtime protection for CLI usage.
         output_path = build_output_path(obj_path, suffix="_error.json")
         write_payload_to_file(
             output_path,
-            build_error_payload(obj_path, "unexpected_error", f"Unexpected error: {exc}"),
+            build_error_payload(
+                obj_path,
+                "unexpected_error",
+                f"Unexpected error: {exc}",
+                source_unit=args.source_unit,
+            ),
         )
         print(f"Saved error output to {output_path}")
         return 1

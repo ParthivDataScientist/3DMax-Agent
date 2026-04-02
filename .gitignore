@@ -1,4 +1,16 @@
-.tmp
-.venv
-.cache
-.__pycache__
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environments and local caches
+.venv/
+.cache/
+.tmp/
+
+# Generated package outputs
+output/
+
+# OS/editor clutter
+Thumbs.db
+.DS_Store

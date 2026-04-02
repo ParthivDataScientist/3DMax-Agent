@@ -10,6 +10,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 
 CACHE_DIR = Path(".cache")
 CACHE_DIR.mkdir(exist_ok=True)
@@ -68,6 +70,7 @@ class DrawingMetadata:
     source_name: str
     units: str
     scale_label: str = "1:1"
+    sheet_label: str = ""
 
 
 @dataclass(frozen=True)
@@ -78,11 +81,14 @@ class ViewSpec:
     title: str
     width_mm: float
     height_mm: float
+    dimension_width_mm: float
+    dimension_height_mm: float
     depth_mm: float
     plane: str
     horizontal_axis: str
     vertical_axis: str
     depth_axis: str
+    projected_edges: tuple[tuple[tuple[float, float], tuple[float, float]], ...]
     origin_x: float = 0.0
     origin_y: float = 0.0
 
@@ -140,6 +146,18 @@ def require_number(value: Any, field_name: str) -> float:
     return numeric
 
 
+def require_float(value: Any, field_name: str) -> float:
+    """Validate that a field contains any finite float."""
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise DrawingGenerationError(f"Invalid numeric value for '{field_name}': {value!r}") from exc
+
+    if not np.isfinite(numeric):
+        raise DrawingGenerationError(f"Expected '{field_name}' to be finite, got {numeric}.")
+    return numeric
+
+
 def load_analysis_json(json_path: Path) -> dict[str, Any]:
     """Load the analysis JSON payload from disk."""
     if not json_path.exists():
@@ -186,9 +204,49 @@ def extract_views(payload: dict[str, Any]) -> list[ViewSpec]:
         if not isinstance(dimensions, dict):
             raise DrawingGenerationError(f"Input JSON is missing views.{view_name}.dimensions.")
 
-        width_mm = require_number(dimensions.get("width"), f"views.{view_name}.dimensions.width")
-        height_mm = require_number(dimensions.get("height"), f"views.{view_name}.dimensions.height")
+        dimension_width_mm = require_number(dimensions.get("width"), f"views.{view_name}.dimensions.width")
+        dimension_height_mm = require_number(dimensions.get("height"), f"views.{view_name}.dimensions.height")
         depth_mm = require_number(dimensions.get("depth"), f"views.{view_name}.dimensions.depth")
+
+        bounds_2d = view_payload.get("bounds_2d")
+        if not isinstance(bounds_2d, dict):
+            raise DrawingGenerationError(f"Input JSON is missing views.{view_name}.bounds_2d.")
+
+        bounds_size = bounds_2d.get("size")
+        if not isinstance(bounds_size, (list, tuple)) or len(bounds_size) != 2:
+            raise DrawingGenerationError(f"Input JSON is missing views.{view_name}.bounds_2d.size.")
+
+        width_mm = require_number(bounds_size[0], f"views.{view_name}.bounds_2d.size[0]")
+        height_mm = require_number(bounds_size[1], f"views.{view_name}.bounds_2d.size[1]")
+
+        edge_payloads = view_payload.get("edges")
+        if not isinstance(edge_payloads, list):
+            raise DrawingGenerationError(f"Input JSON is missing views.{view_name}.edges.")
+
+        projected_edges: list[tuple[tuple[float, float], tuple[float, float]]] = []
+        for edge_index, edge_payload in enumerate(edge_payloads):
+            if not isinstance(edge_payload, dict):
+                raise DrawingGenerationError(f"Invalid edge payload for views.{view_name}.edges[{edge_index}].")
+
+            start = edge_payload.get("start")
+            end = edge_payload.get("end")
+            if not isinstance(start, (list, tuple)) or not isinstance(end, (list, tuple)) or len(start) != 2 or len(end) != 2:
+                raise DrawingGenerationError(
+                    f"Invalid projected segment for views.{view_name}.edges[{edge_index}]."
+                )
+
+            projected_edges.append(
+                (
+                    (
+                        require_float(start[0], f"views.{view_name}.edges[{edge_index}].start[0]"),
+                        require_float(start[1], f"views.{view_name}.edges[{edge_index}].start[1]"),
+                    ),
+                    (
+                        require_float(end[0], f"views.{view_name}.edges[{edge_index}].end[0]"),
+                        require_float(end[1], f"views.{view_name}.edges[{edge_index}].end[1]"),
+                    ),
+                )
+            )
 
         horizontal_axis = str(view_payload.get("horizontal_axis", "")).strip().lower()
         vertical_axis = str(view_payload.get("vertical_axis", "")).strip().lower()
@@ -213,11 +271,14 @@ def extract_views(payload: dict[str, Any]) -> list[ViewSpec]:
                 title=VIEW_TITLES[view_name],
                 width_mm=width_mm,
                 height_mm=height_mm,
+                dimension_width_mm=dimension_width_mm,
+                dimension_height_mm=dimension_height_mm,
                 depth_mm=depth_mm,
                 plane=str(view_payload.get("plane", "")).strip().upper(),
                 horizontal_axis=horizontal_axis,
                 vertical_axis=vertical_axis,
                 depth_axis=depth_axis,
+                projected_edges=tuple(projected_edges),
             )
         )
 
@@ -378,6 +439,31 @@ def draw_rectangle(
     raise DrawingGenerationError(f"Unsupported drawing backend: {backend}")
 
 
+def draw_edges(target: Any, view_spec: ViewSpec, *, backend: str, style: DrawingStyle) -> None:
+    """Draw projected view geometry as line segments."""
+    if backend == "matplotlib":
+        for start, end in view_spec.projected_edges:
+            target.plot(
+                [view_spec.origin_x + start[0], view_spec.origin_x + end[0]],
+                [view_spec.origin_y + start[1], view_spec.origin_y + end[1]],
+                color="black",
+                linewidth=style.geometry_linewidth_pt,
+                solid_capstyle="butt",
+            )
+        return
+
+    if backend == "dxf":
+        for start, end in view_spec.projected_edges:
+            target.add_line(
+                (view_spec.origin_x + start[0], view_spec.origin_y + start[1]),
+                (view_spec.origin_x + end[0], view_spec.origin_y + end[1]),
+                dxfattribs={"layer": "geometry"},
+            )
+        return
+
+    raise DrawingGenerationError(f"Unsupported drawing backend: {backend}")
+
+
 def draw_dimension_line(
     target: Any,
     *,
@@ -515,7 +601,7 @@ def draw_view_dimensions(target: Any, view_spec: ViewSpec, *, backend: str, styl
         p1=(x0, y0 if positions["horizontal"] == "bottom" else y1),
         p2=(x1, y0 if positions["horizontal"] == "bottom" else y1),
         dimension_coordinate=horizontal_dimension_y,
-        text=format_mm(view_spec.width_mm),
+        text=format_mm(view_spec.dimension_width_mm),
         style=style,
     )
     draw_dimension_line(
@@ -525,7 +611,7 @@ def draw_view_dimensions(target: Any, view_spec: ViewSpec, *, backend: str, styl
         p1=(x0 if positions["vertical"] == "left" else x1, y0),
         p2=(x0 if positions["vertical"] == "left" else x1, y1),
         dimension_coordinate=vertical_dimension_x,
-        text=format_mm(view_spec.height_mm),
+        text=format_mm(view_spec.dimension_height_mm),
         style=style,
     )
 
@@ -764,6 +850,14 @@ def draw_title_block(
         backend=backend,
         height_mm=header_h,
     )
+    add_left_text(
+        target,
+        f"SHEET: {metadata.sheet_label}".strip(),
+        (x + column_a + 8.0, y + (row_3 * 0.52)),
+        backend=backend,
+        height_mm=header_h,
+        bold=True,
+    )
 
 
 def output_paths(json_path: Path) -> dict[str, Path]:
@@ -799,15 +893,7 @@ def generate_matplotlib_drawing(
     draw_title_block(axis, metadata, sheet_layout, backend="matplotlib", style=style)
 
     for view in view_specs:
-        draw_rectangle(
-            axis,
-            view.origin_x,
-            view.origin_y,
-            view.width_mm,
-            view.height_mm,
-            backend="matplotlib",
-            lineweight=style.geometry_linewidth_pt,
-        )
+        draw_edges(axis, view, backend="matplotlib", style=style)
         draw_view_dimensions(axis, view, backend="matplotlib", style=style)
         draw_view_title(axis, view, backend="matplotlib", style=style)
 
@@ -860,15 +946,7 @@ def generate_dxf(
     draw_title_block(modelspace, metadata, sheet_layout, backend="dxf", style=style)
 
     for view in view_specs:
-        draw_rectangle(
-            modelspace,
-            view.origin_x,
-            view.origin_y,
-            view.width_mm,
-            view.height_mm,
-            backend="dxf",
-            layer="geometry",
-        )
+        draw_edges(modelspace, view, backend="dxf", style=style)
         draw_view_dimensions(modelspace, view, backend="dxf", style=style)
         draw_view_title(modelspace, view, backend="dxf", style=style)
 
@@ -894,17 +972,24 @@ def generate_outputs(json_path: Path) -> dict[str, Path]:
     return paths
 
 
+def normalize_json_path_argument(path_parts: list[str]) -> Path:
+    """Join CLI path tokens so unquoted paths with spaces still work."""
+    return Path(" ".join(path_parts)).expanduser()
+
+
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
         description="Generate PNG, PDF, and DXF orthographic drawings from an analysis JSON file."
     )
-    parser.add_argument("json_path", help="Path to the analysis JSON file.")
+    parser.add_argument("json_path", nargs="+", help="Path to the analysis JSON file.")
     return parser.parse_args()
 
 
 def main() -> int:
+    """CLI entrypoint for drawing generation."""
     args = parse_args()
-    json_path = Path(args.json_path).expanduser()
+    json_path = normalize_json_path_argument(args.json_path)
 
     try:
         paths = generate_outputs(json_path)
