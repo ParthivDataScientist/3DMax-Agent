@@ -20,6 +20,7 @@ from drawing_generator import (
     add_left_text,
     configure_dimension_style,
     draw_edges,
+    draw_entities,
     draw_sheet_border,
     draw_title_block,
     draw_view_dimensions,
@@ -381,7 +382,7 @@ def render_sheet_matplotlib(
     draw_note_panel(axis, notes, backend="matplotlib", sheet_layout=sheet_plan.sheet_layout, style=sheet_plan.style)
 
     for view in sheet_plan.view_specs:
-        draw_edges(axis, view, backend="matplotlib", style=sheet_plan.style)
+        draw_entities(axis, view, backend="matplotlib", style=sheet_plan.style)
         draw_view_dimensions(axis, view, backend="matplotlib", style=sheet_plan.style)
         draw_view_title(axis, view, backend="matplotlib", style=sheet_plan.style)
         labels = labels_by_view.get(view.name, [])
@@ -413,7 +414,18 @@ def render_sheet_dxf(
     document.units = ezdxf_units.MM
     document.header["$INSUNITS"] = ezdxf_units.MM
 
-    for layer_name, color in (("geometry", 7), ("dimensions", 8), ("text", 3)):
+    for layer_name, color in (
+        ("OUTLINE", 7),
+        ("HIDDEN", 8),
+        ("CENTER", 3),
+        ("DIM", 2),
+        ("TEXT", 4),
+        ("COMPONENT_ID", 6),
+        ("CUTOUT", 1),
+        ("geometry", 7),
+        ("dimensions", 8),
+        ("text", 3)
+    ):
         if layer_name not in document.layers:
             document.layers.add(layer_name, color=color)
 
@@ -425,7 +437,7 @@ def render_sheet_dxf(
     draw_note_panel(modelspace, notes, backend="dxf", sheet_layout=sheet_plan.sheet_layout, style=sheet_plan.style)
 
     for view in sheet_plan.view_specs:
-        draw_edges(modelspace, view, backend="dxf", style=sheet_plan.style)
+        draw_entities(modelspace, view, backend="dxf", style=sheet_plan.style, layer="OUTLINE")
         draw_view_dimensions(modelspace, view, backend="dxf", style=sheet_plan.style)
         draw_view_title(modelspace, view, backend="dxf", style=sheet_plan.style)
         labels = labels_by_view.get(view.name, [])
@@ -487,10 +499,15 @@ def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_roo
     model_name = str(payload["input"]["mesh_name"]).upper()
     raw_views = orthographic_view_specs_from_payload(payload["views"])
 
+    import datetime
     assembly_metadata = DrawingMetadata(
-        drawing_name=f"{model_name} ASSEMBLY DRAWING",
-        source_name=source_name,
+        drawing_name=f"{model_name.upper()} ASSEMBLY DRAWING",
+        source_name=source_name.upper(),
         units="mm",
+        material="MIXED (SEE BOM)",
+        revision="A",
+        date_str=datetime.date.today().isoformat(),
+        drafter="AI DRAFTING",
     )
     assembly_notes = [
         "ASSEMBLY NOTES",
@@ -512,9 +529,13 @@ def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_roo
     elevation_paths: list[str] = []
     for view_name in ("front", "top", "side"):
         view_metadata = DrawingMetadata(
-            drawing_name=f"{model_name} {VIEW_TITLES[view_name]}",
-            source_name=source_name,
+            drawing_name=f"{model_name.upper()} {VIEW_TITLES[view_name]}",
+            source_name=source_name.upper(),
             units="mm",
+            material="MIXED",
+            revision="A",
+            date_str=datetime.date.today().isoformat(),
+            drafter="AI DRAFTING",
         )
         output_base = elevations_dir / f"elevation_{view_name}"
         write_sheet(
@@ -554,10 +575,56 @@ def generate_part_detail_drawings(part_groups: list[dict[str, Any]], output_root
             f"THICKNESS: {group['nominal_thickness_mm']} mm",
             f"QTY: {group['quantity']}",
         ]
+        
+        shape = component.get("shape", "")
+        dims = component.get("dimensions", {})
+        fabrication_flags = component.get("fabrication", {}).get("flags", [])
+        source = component.get("source_name", "")
+        if source:
+            notes.append(f"SOURCE: {source}")
+
+        if shape in ("cylinder", "capsule"):
+            diameter = dims.get("diameter")
+            radius = dims.get("radius")
+            straight = dims.get("straight_length")
+            if diameter is not None:
+                notes.append(f"DIAMETER (o): {diameter:.1f} mm")
+                notes.append(f"RADIUS: {radius:.1f} mm")
+                if shape == "capsule" and straight is not None:
+                    notes.append(f"STRAIGHT LENGTH: {straight:.1f} mm")
+                    notes.append(f"O.A.L.: {dims.get('length'):.1f} mm")
+            else:
+                # Fallback calculation
+                r = min(dims.get("length", 0.0), dims.get("width", 0.0)) / 2.0
+                notes.append(f"DIAMETER (o): {r * 2.0:.1f} mm")
+                notes.append(f"RADIUS: {r:.1f} mm")
+                
+        # If we successfully parsed a capsule, we don't need manual review purely for being an odd shape
+        if shape == "capsule" and "manual_review_required" in fabrication_flags:
+            fabrication_flags = [f for f in fabrication_flags if f != "manual_review_required"]
+
+        if "angled_panel" in fabrication_flags:
+            # Extract tilt degrees from the dynamic flag e.g. "tilt_30.0deg"
+            tilt_str = next((f for f in fabrication_flags if f.startswith("tilt_") and f.endswith("deg")), None)
+            tilt_label = tilt_str.replace("tilt_", "").replace("deg", "") + " deg" if tilt_str else "?"
+            notes.append(f"NOTE: ANGLED PANEL - TILT {tilt_label} FROM HORIZONTAL")
+            notes.append("NOTE: APPROXIMATE PROFILE (MANUAL REVIEW)")
+        elif "approximate_profile" in fabrication_flags:
+            notes.append("NOTE: APPROXIMATE PROFILE (MANUAL REVIEW)")
+        elif "manual_review_required" in fabrication_flags:
+            notes.append("NOTE: MANUAL REVIEW REQUIRED")
+        if "non_standard_orientation" in fabrication_flags:
+            notes.append("NOTE: NON-STANDARD ORIENTATION - VERIFY INSTALLATION ANGLE")
+
+        import datetime
         metadata = DrawingMetadata(
-            drawing_name=f"PART: {component['part_name']}",
-            source_name=str(component["instance_id"]),
+            drawing_name=f"PART: {component['part_name'].upper()}",
+            source_name=str(component["instance_id"]).upper(),
             units="mm",
+            material=group["material"].upper(),
+            revision="A",
+            date_str=datetime.date.today().isoformat(),
+            drafter="AI DRAFTING",
         )
         page_spec = write_sheet(
             output_base,

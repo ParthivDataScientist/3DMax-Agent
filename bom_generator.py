@@ -83,6 +83,9 @@ def group_parts(components: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "material_family": component["material_family"],
                 "nominal_thickness_mm": component["nominal_thickness_mm"],
                 "dimensions": rounded_dimensions(component),
+                "source_name": component.get("source_name", "unknown"),
+                "manual_review_required": component.get("fabrication", {}).get("manual_review_required", False),
+                "shape": component.get("shape", "unknown"),
             }
 
         group = grouped[signature]
@@ -108,16 +111,26 @@ def generate_bom(part_groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Generate grouped BOM rows from unique part groups."""
     rows: list[dict[str, Any]] = []
     for group in part_groups:
+        shape = group.get("shape", "")
+        dims = group["dimensions"]
+        # Use diameter for cylindrical parts instead of width (which equals diameter anyway, but label it clearly)
+        diameter_mm: float | None = None
+        if shape == "cylinder":
+            diameter_mm = round(min(dims.get("length", 0.0), dims.get("width", 0.0)), 3)
         rows.append(
             {
                 "part_id": group["part_group_id"],
                 "type": group["object_type"],
                 "part_name": group["part_name"],
-                "length_mm": group["dimensions"]["length"],
-                "width_mm": group["dimensions"]["width"],
+                "length_mm": dims.get("length"),
+                "width_mm": dims.get("width"),
+                "height_mm": dims.get("height"),
+                "diameter_mm": diameter_mm,
                 "thickness_mm": group["nominal_thickness_mm"],
                 "material": group["material"],
                 "quantity": group["quantity"],
+                "source_name": group.get("source_name", "unknown"),
+                "manual_review_required": group.get("manual_review_required", False),
             }
         )
     return rows

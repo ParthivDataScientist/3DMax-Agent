@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from typing import Any
 
 import numpy as np
@@ -81,6 +82,80 @@ def segment_key(first: np.ndarray, second: np.ndarray, precision: int) -> tuple[
     return tuple(sorted((first_key, second_key)))
 
 
+def group_segments_into_entities(edges: list[dict[str, Any]], precision: int, epsilon: float) -> list[dict[str, Any]]:
+    adj = defaultdict(list)
+    for i, edge in enumerate(edges):
+        s = tuple(edge["start"])
+        e = tuple(edge["end"])
+        adj[s].append((e, i))
+        adj[e].append((s, i))
+
+    visited_edges = set()
+    entities = []
+
+    for i, edge in enumerate(edges):
+        if i in visited_edges:
+            continue
+
+        path_points = [tuple(edge["start"]), tuple(edge["end"])]
+        visited_edges.add(i)
+
+        while True:
+            cur = path_points[-1]
+            candidates = [nxt for nxt in adj[cur] if nxt[1] not in visited_edges]
+            if len(candidates) != 1:
+                break
+            nxt_pt, nxt_edge_idx = candidates[0]
+            visited_edges.add(nxt_edge_idx)
+            path_points.append(nxt_pt)
+            if nxt_pt == path_points[0]:
+                break
+
+        if path_points[0] != path_points[-1]:
+            while True:
+                cur = path_points[0]
+                candidates = [nxt for nxt in adj[cur] if nxt[1] not in visited_edges]
+                if len(candidates) != 1:
+                    break
+                nxt_pt, nxt_edge_idx = candidates[0]
+                visited_edges.add(nxt_edge_idx)
+                path_points.insert(0, nxt_pt)
+                if nxt_pt == path_points[-1]:
+                    break
+
+        is_closed = (path_points[0] == path_points[-1])
+        points_np = np.array(path_points)
+        is_circle = False
+
+        if is_closed and len(path_points) > 8:
+            centroid = points_np[:-1].mean(axis=0)
+            radii = np.linalg.norm(points_np[:-1] - centroid, axis=1)
+            mean_r = float(radii.mean())
+            if mean_r > epsilon and (radii.std() / mean_r) < 0.05:
+                is_circle = True
+                entities.append({
+                    "type": "CIRCLE",
+                    "center": round_vector(centroid, precision),
+                    "radius": round_number(mean_r, precision),
+                })
+
+        if not is_circle:
+             if len(path_points) == 2:
+                 entities.append({
+                     "type": "LINE",
+                     "start": round_vector(path_points[0], precision),
+                     "end": round_vector(path_points[1], precision),
+                 })
+             else:
+                 entities.append({
+                     "type": "LWPOLYLINE",
+                     "points": [round_vector(pt, precision) for pt in (path_points[:-1] if is_closed else path_points)],
+                     "closed": is_closed,
+                 })
+
+    return entities
+
+
 def build_projected_view(
     mesh: trimesh.Trimesh,
     edge_records: list[dict[str, Any]],
@@ -144,6 +219,11 @@ def build_projected_view(
             deduplicated_edges[key]
             for key in sorted(deduplicated_edges)
         ],
+        "entities": group_segments_into_entities(
+            [deduplicated_edges[key] for key in sorted(deduplicated_edges)],
+            precision,
+            epsilon
+        ),
         "bounds_2d": {
             "min": [0.0, 0.0],
             "max": round_vector(max_corner, precision),

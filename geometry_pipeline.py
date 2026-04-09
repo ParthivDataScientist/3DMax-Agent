@@ -184,6 +184,10 @@ def load_mesh(obj_path: Path) -> tuple[trimesh.Trimesh, dict[str, Any]]:
             raise ExtractionError("empty_mesh", "OBJ file does not contain any readable mesh geometry.")
 
         mesh = geometries[0] if len(geometries) == 1 else trimesh.util.concatenate(geometries)
+        named_meshes = []
+        for name, geom in loaded.geometry.items():
+            if isinstance(geom, trimesh.Trimesh) and not geom.is_empty:
+                named_meshes.append((name, geom))
         source_type = "scene"
     elif isinstance(loaded, trimesh.Trimesh):
         if loaded.is_empty:
@@ -191,6 +195,7 @@ def load_mesh(obj_path: Path) -> tuple[trimesh.Trimesh, dict[str, Any]]:
 
         mesh = loaded.copy()
         geometry_names = [obj_path.stem]
+        named_meshes = [(obj_path.stem, loaded.copy())]
         source_type = "mesh"
     else:
         raise ExtractionError(
@@ -199,6 +204,8 @@ def load_mesh(obj_path: Path) -> tuple[trimesh.Trimesh, dict[str, Any]]:
         )
 
     mesh.remove_unreferenced_vertices()
+    for _, geom in named_meshes:
+        geom.remove_unreferenced_vertices()
 
     if mesh.vertices.size == 0 or mesh.faces.size == 0:
         raise ExtractionError("empty_mesh", "OBJ file does not contain measurable mesh faces.")
@@ -208,26 +215,27 @@ def load_mesh(obj_path: Path) -> tuple[trimesh.Trimesh, dict[str, Any]]:
         "geometry_count": len(geometry_names),
         "geometry_names": geometry_names,
     }
-    return mesh, metadata
+    return mesh, metadata, named_meshes
 
 
-def split_components(mesh: trimesh.Trimesh) -> list[trimesh.Trimesh]:
+def split_components(named_meshes: list[tuple[str, trimesh.Trimesh]]) -> list[tuple[str, trimesh.Trimesh]]:
     components = []
 
-    try:
-        submeshes = mesh.split(only_watertight=False)
-    except ImportError:
-        face_groups = connected_face_groups(mesh.faces)
-        submeshes = mesh.submesh(face_groups, append=False, repair=False)
+    for source_name, mesh in named_meshes:
+        try:
+            submeshes = mesh.split(only_watertight=False)
+        except ImportError:
+            face_groups = connected_face_groups(mesh.faces)
+            submeshes = mesh.submesh(face_groups, append=False, repair=False)
 
-    for component in submeshes:
-        cleaned = component.copy()
-        cleaned.remove_unreferenced_vertices()
-        if cleaned.vertices.size == 0 or cleaned.faces.size == 0:
-            continue
-        components.append(cleaned)
+        for component in submeshes:
+            cleaned = component.copy()
+            cleaned.remove_unreferenced_vertices()
+            if cleaned.vertices.size == 0 or cleaned.faces.size == 0:
+                continue
+            components.append((source_name, cleaned))
 
-    return components if components else [mesh.copy()]
+    return components
 
 
 def connected_face_groups(faces: np.ndarray) -> list[list[int]]:
@@ -637,6 +645,8 @@ def detect_shape(
         and shape_features["spherical_extent_ratio"] < SPHERE_EXTENT_RATIO
         and shape_features["major_planar_region_count"] <= 4
     ):
+        if shape_features["major_planar_area_ratio"] < 0.2:
+            return "capsule"
         return "cylinder"
 
     major_regions = major_planar_regions(planar_regions)
@@ -775,7 +785,7 @@ def build_mesh_measurements(mesh: trimesh.Trimesh) -> dict[str, Any]:
     }
 
 
-def build_component_record(component_id: int, mesh: trimesh.Trimesh) -> dict[str, Any]:
+def build_component_record(component_id: int, mesh: trimesh.Trimesh, source_name: str) -> dict[str, Any]:
     principal_frame = compute_principal_frame(mesh)
     semantic_dimensions = compute_semantic_dimensions(principal_frame)
     planar_regions = build_planar_regions(mesh)
@@ -799,17 +809,74 @@ def build_component_record(component_id: int, mesh: trimesh.Trimesh) -> dict[str
     semantic_aspect_ratio = safe_ratio(semantic_length, max(semantic_width, EPSILON))
     height_to_length_ratio = safe_ratio(semantic_height, max(semantic_length, EPSILON))
 
+    fabrication_flags = []
+    geometry_primitives = []
+    component_orientation = orientation["classification"]
+
+    if shape in ("cylinder", "capsule"):
+        geometry_primitives.extend(["CIRCLE", "ARC", "LINE"])
+        if component_orientation == "angled":
+            if shape == "cylinder":
+                fabrication_flags.append("manual_review_required")
+            fabrication_flags.append("non_standard_orientation")
+    elif shape == "flat panel":
+        geometry_primitives.extend(["POLYLINE", "LINE"])
+        # A flat panel that is angled (not plumb vertical or flat horizontal) needs review.
+        # threshold logic:
+        #   alignment >= 0.95  => within ~18° of horizontal  (truly flat)
+        #   alignment <= 0.10  => within ~6°  of vertical    (truly plumb wall)
+        #   anything between   => angled, flag for review
+        panel_normal = np.asarray(principal_frame["axes"][2], dtype=float)
+        vertical = np.array([0.0, 0.0, 1.0], dtype=float)
+        alignment = abs(float(np.dot(normalize_vector(panel_normal), vertical)))
+        tilt_deg = round(math.degrees(math.acos(min(alignment, 1.0))), 1)
+        if not (alignment >= 0.95 or alignment <= 0.10):
+            fabrication_flags.append("angled_panel")
+            fabrication_flags.append(f"tilt_{tilt_deg}deg")
+            fabrication_flags.append("approximate_profile")
+    elif shape == "box":
+        geometry_primitives.extend(["RECTANGLE", "LINE"])
+    elif shape in ("sphere", "irregular"):
+        geometry_primitives.extend(["POLYLINE"])
+        fabrication_flags.append("manual_review_required")
+        fabrication_flags.append("approximate_profile")
+
+    if shape == "irregular" and not bool(mesh.is_watertight):
+        fabrication_flags.append("non_planar_part")
+
+    # Expose straight constraints for cylindrical/capsule parts
+    diameter = None
+    radius = None
+    straight_length = None
+    if shape in ("cylinder", "capsule"):
+        diameter = round_number(min(semantic_length, semantic_width))
+        radius = round_number(diameter / 2.0) if diameter is not None else None
+        straight_length = semantic_length
+        if shape == "capsule" and radius is not None:
+            # Total length = straight_length + 2 * radius
+            straight_length = max(0.0, semantic_length - 2.0 * radius)
+
     return {
         "id": component_id,
+        "source_name": source_name,
         "type": component_type,
         "shape": shape,
+        "shape_family": shape,
         "orientation": orientation["classification"],
         "semantic_role": semantic_role,
+        "geometry_primitives": geometry_primitives,
+        "fabrication": {
+            "flags": fabrication_flags,
+            "manual_review_required": "manual_review_required" in fabrication_flags
+        },
         "dimensions": {
             "length": round_number(semantic_length),
             "width": round_number(semantic_width),
             "height": round_number(semantic_height),
             "thickness": round_number(min(semantic_length, semantic_width, semantic_height)),
+            "diameter": diameter,
+            "radius": radius,
+            "straight_length": round_number(straight_length) if straight_length is not None else None,
             "aspect_ratio": round_number(semantic_aspect_ratio),
             "height_to_length_ratio": round_number(height_to_length_ratio),
             "axis_aligned_size": measurements["bounding_box"]["size"],
@@ -881,9 +948,14 @@ def summarize_components(components: list[dict[str, Any]]) -> dict[str, Any]:
 
 def extract_measurements(obj_path: str, source_unit: str = UNIT) -> dict[str, Any]:
     path = Path(obj_path).expanduser()
-    mesh, mesh_source = load_mesh(path)
+    mesh, mesh_source, named_meshes = load_mesh(path)
     source_unit_normalized = source_unit.strip().lower()
     mesh = scale_mesh_to_mm(mesh, source_unit_normalized)
+    
+    scaled_named_meshes = [
+        (name, scale_mesh_to_mm(comp_mesh, source_unit_normalized))
+        for name, comp_mesh in named_meshes
+    ]
     unit_scale_to_mm = resolve_unit_scale(source_unit_normalized)
 
     payload = {
@@ -902,8 +974,8 @@ def extract_measurements(obj_path: str, source_unit: str = UNIT) -> dict[str, An
     payload.update(build_mesh_measurements(mesh))
 
     components = [
-        build_component_record(component_id=index, mesh=component_mesh)
-        for index, component_mesh in enumerate(split_components(mesh), start=1)
+        build_component_record(component_id=index, mesh=component_mesh, source_name=source_name)
+        for index, (source_name, component_mesh) in enumerate(split_components(scaled_named_meshes), start=1)
     ]
     payload["component_summary"] = summarize_components(components)
     payload["components"] = components

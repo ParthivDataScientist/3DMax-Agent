@@ -86,4 +86,14 @@ def classify_object(component_analysis: dict[str, Any], assembly_context: dict[s
     if elongation_ratio >= 4.0 and smallest_cross_section <= 80.0:
         return "frame"
 
-    return "unknown"
+    if shape == "cylinder":
+        return "cylinder_part"
+    if shape == "flat panel":
+        return "flat_part"
+    if shape == "box":
+        return "box_part"
+
+    if component_analysis.get("fabrication", {}).get("manual_review_required"):
+        return "unknown"
+
+    return "generic_part"

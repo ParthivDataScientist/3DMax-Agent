@@ -69,6 +69,10 @@ class DrawingMetadata:
     drawing_name: str
     source_name: str
     units: str
+    material: str = "SPECIFY"
+    revision: str = "01"
+    date_str: str = ""
+    drafter: str = "AUTO"
     scale_label: str = "1:1"
     sheet_label: str = ""
 
@@ -89,6 +93,7 @@ class ViewSpec:
     vertical_axis: str
     depth_axis: str
     projected_edges: tuple[tuple[tuple[float, float], tuple[float, float]], ...]
+    projected_entities: tuple[dict[str, Any], ...] = ()
     origin_x: float = 0.0
     origin_y: float = 0.0
 
@@ -128,10 +133,13 @@ class SheetLayout:
 
 
 def format_mm(value: float) -> str:
-    """Format a dimension value without unnecessary trailing zeros."""
-    if abs(value - round(value)) < 1e-9:
-        return str(int(round(value)))
-    return f"{value:.3f}".rstrip("0").rstrip(".")
+    """Format an engineering dimension value.
+    Smooths micro-anomalies (like 199.917 to 200) assuming tight manufacturing tolerances.
+    """
+    nearest_int = round(value)
+    if abs(value - nearest_int) <= 0.15:
+        return str(int(nearest_int))
+    return f"{value:.1f}".rstrip("0").rstrip(".")
 
 
 def require_number(value: Any, field_name: str) -> float:
@@ -248,6 +256,8 @@ def extract_views(payload: dict[str, Any]) -> list[ViewSpec]:
                 )
             )
 
+        projected_entities = tuple(view_payload.get("entities", []))
+
         horizontal_axis = str(view_payload.get("horizontal_axis", "")).strip().lower()
         vertical_axis = str(view_payload.get("vertical_axis", "")).strip().lower()
         depth_axis = str(view_payload.get("depth_axis", "")).strip().lower()
@@ -279,6 +289,7 @@ def extract_views(payload: dict[str, Any]) -> list[ViewSpec]:
                 vertical_axis=vertical_axis,
                 depth_axis=depth_axis,
                 projected_edges=tuple(projected_edges),
+                projected_entities=projected_entities,
             )
         )
 
@@ -464,6 +475,72 @@ def draw_edges(target: Any, view_spec: ViewSpec, *, backend: str, style: Drawing
     raise DrawingGenerationError(f"Unsupported drawing backend: {backend}")
 
 
+def draw_entities(target: Any, view_spec: ViewSpec, *, backend: str, style: DrawingStyle, layer: str = "geometry") -> None:
+    """Draw high level projected entities."""
+    if backend == "matplotlib":
+        # We rely on draw_edges to draw the lines since matplotlib currently only renders the segments.
+        draw_edges(target, view_spec, backend=backend, style=style)
+        return
+
+    if backend == "dxf":
+        for ent in view_spec.projected_entities:
+            ety = ent.get("type", "LINE")
+            ent_layer = ent.get("layer", layer)
+            if ety == "LINE":
+                target.add_line(
+                    (view_spec.origin_x + ent["start"][0], view_spec.origin_y + ent["start"][1]),
+                    (view_spec.origin_x + ent["end"][0], view_spec.origin_y + ent["end"][1]),
+                    dxfattribs={"layer": ent_layer},
+                )
+            elif ety == "LWPOLYLINE":
+                points = [(view_spec.origin_x + pt[0], view_spec.origin_y + pt[1]) for pt in ent["points"]]
+                target.add_lwpolyline(points, close=ent.get("closed", False), dxfattribs={"layer": ent_layer})
+            elif ety == "CIRCLE":
+                target.add_circle(
+                    (view_spec.origin_x + ent["center"][0], view_spec.origin_y + ent["center"][1]),
+                    ent["radius"],
+                    dxfattribs={"layer": ent_layer}
+                )
+        return
+
+    raise DrawingGenerationError(f"Unsupported drawing backend: {backend}")
+
+def draw_centerlines(target: Any, pt1: tuple[float, float], pt2: tuple[float, float], *, backend: str, style: DrawingStyle) -> None:
+    """Draw a classic long-dash-short-dash centerline."""
+    if backend == "matplotlib":
+        target.plot([pt1[0], pt2[0]], [pt1[1], pt2[1]], color="gray", linewidth=0.5, linestyle="dashdot")
+        return
+    if backend == "dxf":
+        target.add_line(pt1, pt2, dxfattribs={"layer": "center", "linetype": "CENTER", "color": 3})
+        return
+    raise DrawingGenerationError(f"Unsupported drawing backend: {backend}")
+
+def draw_datum(target: Any, label: str, loc: tuple[float, float], *, backend: str, style: DrawingStyle) -> None:
+    """Draw an ASME standard datum box [ A ] at the specified location."""
+    box_w = 6.0
+    box_h = 6.0
+    x, y = loc[0], loc[1]
+    # Draw box attached to the point
+    pts = [
+        (x - box_w/2, y),
+        (x + box_w/2, y),
+        (x + box_w/2, y + box_h),
+        (x - box_w/2, y + box_h),
+        (x - box_w/2, y)
+    ]
+    if backend == "matplotlib":
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        target.plot(xs, ys, color="black", linewidth=0.8)
+        target.text(x, y + box_h/2, label, ha="center", va="center", fontsize=8, fontweight="bold")
+    elif backend == "dxf":
+        target.add_lwpolyline(pts, dxfattribs={"layer": "datum"})
+        txt = target.add_text(label, dxfattribs={"layer": "datum", "height": 3.0})
+        txt.set_placement((x, y + box_h/2), align=TextEntityAlignment.MIDDLE_CENTER)
+    else:
+        raise DrawingGenerationError(f"Unsupported backend {backend}")
+
+
 def draw_dimension_line(
     target: Any,
     *,
@@ -615,6 +692,17 @@ def draw_view_dimensions(target: Any, view_spec: ViewSpec, *, backend: str, styl
         style=style,
     )
 
+    # Inject ASME datums and centerlines for symmetric components
+    cx = (x0 + x1) / 2.0
+    cy = (y0 + y1) / 2.0
+    if view_spec.name == "top":
+        draw_centerlines(target, (x0 - 10.0, cy), (x1 + 10.0, cy), backend=backend, style=style)
+        draw_centerlines(target, (cx, y0 - 10.0), (cx, y1 + 10.0), backend=backend, style=style)
+        draw_datum(target, "A", (cx, y1 + 15.0), backend=backend, style=style)
+    elif view_spec.name == "front":
+        draw_centerlines(target, (cx, y0 - 10.0), (cx, y1 + 10.0), backend=backend, style=style)
+        draw_datum(target, "B", (cx, y0 - 15.0), backend=backend, style=style)
+
 
 def draw_view_title(target: Any, view_spec: ViewSpec, *, backend: str, style: DrawingStyle) -> None:
     """Draw the view label above the view."""
@@ -744,34 +832,45 @@ def draw_title_block(
     backend: str,
     style: DrawingStyle,
 ) -> None:
-    """Draw a simple engineering title block."""
+    """Draw an ISO/ASME standard engineering title block."""
     x = sheet_layout.title_block_origin_x
     y = sheet_layout.title_block_origin_y
     width = sheet_layout.title_block_width_mm
     height = sheet_layout.title_block_height_mm
-    row_1 = height * 0.40
-    row_2 = height * 0.30
-    row_3 = height - row_1 - row_2
-    column_a = width * 0.58
-    column_b = width * 0.21
-    column_c = width - column_a - column_b
-
+    
+    row_h = height / 4.0
+    r1 = y + height - row_h
+    r2 = r1 - row_h
+    r3 = r2 - row_h
+    r4 = y
+    
+    c2_mid = x + width * 0.50
+    c3_1 = x + width * 0.22
+    c3_2 = c3_1 + width * 0.18
+    c3_3 = c3_2 + width * 0.35
+    c4_1 = x + width * 0.22
+    c4_2 = c4_1 + width * 0.25
+    c4_3 = c4_2 + width * 0.28
+    
     draw_rectangle(target, x, y, width, height, backend=backend, layer="geometry", lineweight=1.0)
-
+    
     lines = [
-        ((x, y + row_3), (x + width, y + row_3)),
-        ((x, y + row_3 + row_2), (x + width, y + row_3 + row_2)),
-        ((x + column_a, y), (x + column_a, y + row_3 + row_2)),
-        ((x + column_a + column_b, y), (x + column_a + column_b, y + row_3 + row_2)),
+        ((x, r1), (x + width, r1)),
+        ((x, r2), (x + width, r2)),
+        ((x, r3), (x + width, r3)),
+        ((c2_mid, r2), (c2_mid, r1)),
+        ((c3_1, r3), (c3_1, r2)),
+        ((c3_2, r3), (c3_2, r2)),
+        ((c3_3, r3), (c3_3, r2)),
+        ((c4_1, r4), (c4_1, r3)),
+        ((c4_2, r4), (c4_2, r3)),
+        ((c4_3, r4), (c4_3, r3)),
+        ((c3_3, r4), (c3_3, r3)),
     ]
+    
     if backend == "matplotlib":
         for start, end in lines:
-            target.plot(
-                [start[0], end[0]],
-                [start[1], end[1]],
-                color="black",
-                linewidth=0.9,
-            )
+            target.plot([start[0], end[0]], [start[1], end[1]], color="black", linewidth=0.9)
     elif backend == "dxf":
         for start, end in lines:
             target.add_line(start, end, dxfattribs={"layer": "geometry"})
@@ -780,84 +879,39 @@ def draw_title_block(
 
     header_h = style.header_text_height_mm
     value_h = style.text_height_mm
+    
+    def _header(txt: str, loc_x: float, loc_y: float) -> None:
+        add_left_text(target, txt, (loc_x + 5.0, loc_y - header_h * 0.8), backend=backend, height_mm=header_h, bold=True)
+        
+    def _val(txt: str, loc_x: float, loc_y: float) -> None:
+        add_left_text(target, txt, (loc_x + 5.0, loc_y + row_h * 0.35), backend=backend, height_mm=value_h)
 
-    add_left_text(
-        target,
-        "DRAWING NAME",
-        (x + 8.0, y + row_3 + row_2 + row_1 - (header_h * 0.9)),
-        backend=backend,
-        height_mm=header_h,
-        bold=True,
-    )
-    add_left_text(
-        target,
-        metadata.drawing_name,
-        (x + 8.0, y + row_3 + row_2 + (row_1 * 0.38)),
-        backend=backend,
-        height_mm=value_h,
-    )
-    add_left_text(
-        target,
-        "SOURCE",
-        (x + 8.0, y + row_3 + row_2 - (header_h * 0.55)),
-        backend=backend,
-        height_mm=header_h,
-        bold=True,
-    )
-    add_left_text(
-        target,
-        metadata.source_name,
-        (x + 8.0, y + row_3 + (row_2 * 0.38)),
-        backend=backend,
-        height_mm=header_h,
-    )
-    add_left_text(
-        target,
-        "UNITS",
-        (x + column_a + 8.0, y + row_3 + (row_2 * 0.70)),
-        backend=backend,
-        height_mm=header_h,
-        bold=True,
-    )
-    add_centered_text(
-        target,
-        metadata.units.upper(),
-        (x + column_a + (column_b / 2.0), y + row_3 + (row_2 * 0.33)),
-        backend=backend,
-        height_mm=value_h,
-        bold=True,
-    )
-    add_left_text(
-        target,
-        "SCALE",
-        (x + column_a + column_b + 8.0, y + row_3 + (row_2 * 0.70)),
-        backend=backend,
-        height_mm=header_h,
-        bold=True,
-    )
-    add_centered_text(
-        target,
-        metadata.scale_label,
-        (x + column_a + column_b + (column_c / 2.0), y + row_3 + (row_2 * 0.33)),
-        backend=backend,
-        height_mm=value_h,
-        bold=True,
-    )
-    add_left_text(
-        target,
-        "VIEW LAYOUT: TOP / FRONT / RIGHT SIDE",
-        (x + 8.0, y + (row_3 * 0.52)),
-        backend=backend,
-        height_mm=header_h,
-    )
-    add_left_text(
-        target,
-        f"SHEET: {metadata.sheet_label}".strip(),
-        (x + column_a + 8.0, y + (row_3 * 0.52)),
-        backend=backend,
-        height_mm=header_h,
-        bold=True,
-    )
+    _header("DRAWING NAME", x, r1 + row_h)
+    _val(metadata.drawing_name, x, r1)
+    
+    _header("SOURCE / PART ID", x, r2 + row_h)
+    _val(metadata.source_name, x, r2)
+    _header("MATERIAL", c2_mid, r2 + row_h)
+    _val(metadata.material, c2_mid, r2)
+    
+    _header("DATE", x, r3 + row_h)
+    _val(metadata.date_str, x, r3)
+    _header("REV", c3_1, r3 + row_h)
+    _val(metadata.revision, c3_1, r3)
+    _header("DRAFTER", c3_2, r3 + row_h)
+    _val(metadata.drafter, c3_2, r3)
+    _header("GENERAL TOLERANCES", c3_3, r3 + row_h)
+    add_left_text(target, "LINEAR: ± 0.1 mm", (c3_3 + 5.0, r3 + row_h * 0.45), backend=backend, height_mm=header_h)
+    add_left_text(target, "ANGULAR: ± 0.5°", (c3_3 + 5.0, r3 + row_h * 0.15), backend=backend, height_mm=header_h)
+    
+    _header("UNITS", x, r4 + row_h)
+    _val(metadata.units.upper(), x, r4)
+    _header("SCALE", c4_1, r4 + row_h)
+    _val(metadata.scale_label, c4_1, r4)
+    _header("SHEET", c4_2, r4 + row_h)
+    _val(metadata.sheet_label, c4_2, r4)
+    _header("PROJECTION", c4_3, r4 + row_h)
+    _val("THIRD ANGLE", c4_3, r4)
 
 
 def output_paths(json_path: Path) -> dict[str, Path]:

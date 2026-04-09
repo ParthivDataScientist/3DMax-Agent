@@ -63,6 +63,13 @@ OBJECT_TYPE_DEFAULTS: dict[str, dict[str, Any]] = {
     "frame": {"material_key": "ms_powder_coated", "preferred_thickness_mm": 30},
     "pole": {"material_key": "stainless_steel", "preferred_thickness_mm": 50},
     "acrylic_logo": {"material_key": "acrylic", "preferred_thickness_mm": 5},
+    # Primitive-based fallback types
+    "cylinder_part": {"material_key": "aluminum_extrusion", "preferred_thickness_mm": 40},
+    "flat_part": {"material_key": "mdf", "preferred_thickness_mm": 18},
+    "box_part": {"material_key": "plywood", "preferred_thickness_mm": 18},
+    "generic_part": {"material_key": "mdf", "preferred_thickness_mm": 18},
+    # Freeform shapes
+    "sphere": {"material_key": "ms_powder_coated", "preferred_thickness_mm": 20},
     "unknown": {"material_key": "mdf", "preferred_thickness_mm": 18},
 }
 
