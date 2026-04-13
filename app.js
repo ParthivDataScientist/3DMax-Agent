@@ -73,7 +73,17 @@ processBtn.addEventListener("click", async () => {
       }),
     });
 
-    const data = await response.json();
+    let data;
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      const rawText = await response.text();
+      throw new Error(
+        `Backend route not found or invalid response (${response.status}). ${rawText.slice(0, 90)}`
+      );
+    }
+
     if (!response.ok) {
       throw new Error(data.error || "Processing failed");
     }
