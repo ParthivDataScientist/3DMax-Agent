@@ -3,6 +3,7 @@ const fileMeta = document.getElementById("fileMeta");
 const processBtn = document.getElementById("processBtn");
 const statusEl = document.getElementById("status");
 const dropzone = document.getElementById("dropzone");
+const sourceUnitEl = document.getElementById("sourceUnit");
 
 let selectedFile = null;
 
@@ -70,6 +71,7 @@ processBtn.addEventListener("click", async () => {
       body: JSON.stringify({
         filename: selectedFile.name,
         content: fileText,
+        sourceUnit: sourceUnitEl.value,
       }),
     });
 
@@ -88,17 +90,18 @@ processBtn.addEventListener("click", async () => {
       throw new Error(data.error || "Processing failed");
     }
 
-    const blob = new Blob([data.content], { type: "text/plain" });
+    const zipBytes = Uint8Array.from(atob(data.zipBase64), (c) => c.charCodeAt(0));
+    const blob = new Blob([zipBytes], { type: "application/zip" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = data.filename || `processed_${selectedFile.name}`;
+    a.download = data.filename || `${selectedFile.name.replace(/\.obj$/i, "")}_package.zip`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
 
-    setStatus("Done. Processed file downloaded. Nothing is stored on the server.");
+    setStatus("Done. Fabrication package zip downloaded.");
   } catch (error) {
     setStatus(error.message || "Something went wrong.", true);
   } finally {

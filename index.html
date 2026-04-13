@@ -12,8 +12,18 @@
         <p class="eyebrow">OBJ Processor Preview</p>
         <h1>Upload, process, download</h1>
         <p class="subtitle">
-          Backend processes your `.obj` in memory and immediately returns a generated file.
+          Upload OBJ, backend generates drawings and part files, then returns one zip download.
+          Temporary files are deleted after processing.
         </p>
+
+        <label class="unit-row" for="sourceUnit">
+          Source Unit
+          <select id="sourceUnit">
+            <option value="mm">mm</option>
+            <option value="cm">cm</option>
+            <option value="m">m</option>
+          </select>
+        </label>
 
         <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload OBJ file">
           <input id="fileInput" type="file" accept=".obj" />
