@@ -20,12 +20,24 @@ const setFile = (file) => {
   }
 
   selectedFile = file;
-  fileMeta.textContent = `${file.name} (${Math.round(file.size / 1024)} KB)`;
+  const sizeKb = Math.max(1, Math.round(file.size / 1024));
+  fileMeta.textContent = `Selected: ${file.name} (${sizeKb} KB)`;
   processBtn.disabled = false;
   setStatus("");
 };
 
 fileInput.addEventListener("change", () => setFile(fileInput.files?.[0]));
+
+dropzone.addEventListener("click", () => {
+  fileInput.click();
+});
+
+dropzone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    fileInput.click();
+  }
+});
 
 dropzone.addEventListener("dragover", (event) => {
   event.preventDefault();
@@ -76,7 +88,7 @@ processBtn.addEventListener("click", async () => {
     a.remove();
     URL.revokeObjectURL(url);
 
-    setStatus("Done. Your processed file downloaded.");
+    setStatus("Done. Processed file downloaded. Nothing is stored on the server.");
   } catch (error) {
     setStatus(error.message || "Something went wrong.", true);
   } finally {

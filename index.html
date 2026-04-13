@@ -9,18 +9,19 @@
   <body>
     <main class="app">
       <section class="card">
-        <p class="eyebrow">Vercel Preview</p>
-        <h1>Upload your OBJ file</h1>
+        <p class="eyebrow">OBJ Processor Preview</p>
+        <h1>Upload, process, download</h1>
         <p class="subtitle">
-          Quick upload, quick process, quick download. Simple but cool.
+          Backend processes your `.obj` in memory and immediately returns a generated file.
         </p>
 
-        <label for="fileInput" class="dropzone" id="dropzone">
+        <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload OBJ file">
           <input id="fileInput" type="file" accept=".obj" />
-          <span class="dropzone-title">Drop .obj here or click to choose</span>
-          <span class="dropzone-meta" id="fileMeta">No file selected</span>
-        </label>
+          <p class="dropzone-title">Drop `.obj` file here</p>
+          <p class="dropzone-meta">or click <span class="choose">Choose File</span></p>
+        </div>
 
+        <p class="file-pill" id="fileMeta">No file selected</p>
         <button id="processBtn" disabled>Process & Download</button>
         <p id="status" class="status"></p>
       </section>

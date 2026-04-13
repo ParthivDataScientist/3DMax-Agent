@@ -1,11 +1,13 @@
 :root {
   color-scheme: dark;
-  --bg: #0f1220;
-  --card: #1b2140;
-  --text: #f4f6ff;
-  --muted: #aab2df;
-  --accent: #7c8bff;
-  --accent-2: #5be7c4;
+  --bg-1: #0a1022;
+  --bg-2: #131b37;
+  --panel: rgba(18, 26, 53, 0.88);
+  --text: #eef2ff;
+  --muted: #aab5da;
+  --accent: #7e8eff;
+  --accent-soft: #8ef6d8;
+  --border: rgba(126, 142, 255, 0.35);
 }
 
 * {
@@ -15,9 +17,9 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: Inter, Segoe UI, Arial, sans-serif;
-  background: radial-gradient(circle at top right, #28306a, var(--bg) 50%);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
   color: var(--text);
+  background: radial-gradient(90% 120% at 10% 5%, #1a2562 0%, var(--bg-1) 55%, #060913 100%);
 }
 
 .app {
@@ -28,49 +30,55 @@ body {
 }
 
 .card {
-  width: min(620px, 100%);
-  background: rgba(27, 33, 64, 0.9);
-  border: 1px solid rgba(124, 139, 255, 0.3);
+  width: min(660px, 100%);
+  padding: 30px;
+  border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 28px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  background: var(--panel);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(6px);
 }
 
 .eyebrow {
-  margin: 0 0 10px;
-  color: var(--accent-2);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  margin: 0 0 8px;
+  color: var(--accent-soft);
   text-transform: uppercase;
+  letter-spacing: 0.08em;
   font-size: 12px;
+  font-weight: 600;
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(1.8rem, 3vw, 2.3rem);
+  font-size: clamp(1.9rem, 3.5vw, 2.4rem);
 }
 
 .subtitle {
   margin: 10px 0 22px;
   color: var(--muted);
+  line-height: 1.5;
 }
 
 .dropzone {
-  display: block;
-  width: 100%;
-  border: 1.5px dashed rgba(124, 139, 255, 0.8);
+  border: 1.5px dashed rgba(142, 246, 216, 0.55);
   border-radius: 16px;
-  background: rgba(124, 139, 255, 0.08);
-  padding: 28px 18px;
+  padding: 30px 18px;
   text-align: center;
+  background: rgba(142, 246, 216, 0.06);
   cursor: pointer;
-  transition: 0.2s ease;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
 .dropzone:hover,
 .dropzone.drag {
-  background: rgba(124, 139, 255, 0.16);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  background: rgba(142, 246, 216, 0.12);
+  border-color: rgba(142, 246, 216, 0.85);
+}
+
+.dropzone:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .dropzone input {
@@ -78,36 +86,52 @@ h1 {
 }
 
 .dropzone-title {
-  display: block;
+  margin: 0;
+  font-weight: 600;
   font-size: 1.05rem;
-  margin-bottom: 6px;
 }
 
 .dropzone-meta {
+  margin: 8px 0 0;
   color: var(--muted);
+}
+
+.choose {
+  color: var(--accent-soft);
+  font-weight: 600;
+}
+
+.file-pill {
+  margin: 14px 0 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  display: inline-block;
+  background: rgba(126, 142, 255, 0.14);
+  border: 1px solid rgba(126, 142, 255, 0.35);
+  color: #dce3ff;
   font-size: 0.9rem;
 }
 
 button {
-  margin-top: 18px;
   width: 100%;
-  border: none;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 0;
   border-radius: 12px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  color: #081025;
   font-weight: 700;
   font-size: 0.98rem;
-  padding: 12px 16px;
+  color: #091021;
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft));
   cursor: pointer;
 }
 
 button:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
-  opacity: 0.5;
 }
 
 .status {
-  min-height: 1.3em;
-  margin-top: 12px;
+  min-height: 1.4rem;
+  margin: 12px 0 0;
   color: var(--muted);
 }
