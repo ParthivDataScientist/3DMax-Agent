@@ -314,8 +314,17 @@
           body: JSON.stringify({ filename: selectedFile.name, content, sourceUnit: sourceUnit.value }),
         });
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || data.detail || "Server error");
+        // Read as text first — avoids crash if server returns HTML error page
+        const rawText = await res.text();
+        let data;
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          // Server returned non-JSON (e.g. Vercel/nginx error page)
+          const snippet = rawText.replace(/<[^>]+>/g, " ").trim().slice(0, 200);
+          throw new Error(`Server returned an unexpected response: ${snippet}`);
+        }
+        if (!res.ok) throw new Error(data.detail || data.error || data.message || `Server error ${res.status}`);
 
         zipBase64   = data.zipBase64;
         zipFilename = data.filename;
