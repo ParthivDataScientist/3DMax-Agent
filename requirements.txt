@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+trimesh
+numpy
+matplotlib
+ezdxf
+scipy

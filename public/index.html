@@ -1,348 +1,359 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>3DMax Agent — OBJ Fabrication Pipeline</title>
-    <meta name="description" content="Upload a Wavefront OBJ file and instantly download a complete fabrication package — analysis JSON, BOM, assembly drawings, elevation sheets and part drawings, bundled in one zip." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3DMax Agent — OBJ Fabrication Pipeline</title>
+  <meta name="description" content="Upload an OBJ file and download a complete fabrication package as a ZIP." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    <!-- Background canvas for animated particles -->
-    <canvas id="bgCanvas" aria-hidden="true"></canvas>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
 
-    <!-- ── HERO / NAV ── -->
-    <header class="site-header">
-      <div class="header-inner">
-        <div class="brand">
-          <span class="brand-icon">⬡</span>
-          <span class="brand-name">3DMax <span class="brand-accent">Agent</span></span>
-        </div>
-        <nav class="header-nav">
-          <span class="badge-dev">Development Stage</span>
-        </nav>
+    .card {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.75rem;
+    }
+    .logo-icon {
+      font-size: 1.4rem;
+    }
+    .logo-text {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .logo-text span { color: #818cf8; }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      line-height: 1.3;
+    }
+    .sub {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 1.75rem;
+    }
+
+    label.field-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    select {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.9rem;
+      margin-bottom: 1.25rem;
+      outline: none;
+      appearance: none;
+      cursor: pointer;
+    }
+    select:focus { border-color: #818cf8; }
+
+    .dropzone {
+      border: 2px dashed #2d3148;
+      border-radius: 10px;
+      padding: 2rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 1.25rem;
+      position: relative;
+    }
+    .dropzone:hover, .dropzone.over { border-color: #818cf8; background: #1e2035; }
+    .dropzone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .dz-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .dz-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .dz-hint { font-size: 0.78rem; color: #475569; }
+    .dz-hint span { color: #818cf8; }
+    .dz-selected { color: #4ade80; font-size: 0.9rem; font-weight: 600; }
+    .dz-selected small { display: block; color: #64748b; font-weight: 400; font-size: 0.78rem; }
+
+    button#processBtn {
+      width: 100%;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 0.85rem 1.5rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    button#processBtn:hover:not(:disabled) { background: #4338ca; }
+    button#processBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    button#processBtn.loading .spinner { display: block; }
+    button#processBtn.loading .btn-label { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #statusMsg {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      text-align: center;
+      min-height: 1.2rem;
+    }
+    .status-error { color: #f87171; }
+    .status-ok    { color: #4ade80; }
+    .status-info  { color: #94a3b8; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2d3148;
+      margin: 1.5rem 0;
+    }
+
+    #resultPanel {
+      display: none;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+    }
+    .result-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #4ade80;
+      margin-bottom: 0.75rem;
+    }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      margin-bottom: 0.35rem;
+    }
+    .result-row span:first-child { color: #64748b; }
+    .result-row span:last-child  { font-weight: 600; }
+
+    button#dlBtn {
+      width: 100%;
+      margin-top: 1rem;
+      background: #166534;
+      color: #4ade80;
+      border: 1px solid #15803d;
+      border-radius: 8px;
+      padding: 0.7rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button#dlBtn:hover { background: #14532d; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">3DMax <span>Agent</span></span>
+    </div>
+
+    <h1>OBJ Fabrication Pipeline</h1>
+    <p class="sub">Upload a Wavefront <code>.obj</code> file and download a complete fabrication package (PDF drawings + BOM) as a ZIP.</p>
+
+    <label class="field-label" for="sourceUnit">Source unit</label>
+    <select id="sourceUnit">
+      <option value="mm">Millimeters (mm)</option>
+      <option value="cm">Centimeters (cm)</option>
+      <option value="m">Meters (m)</option>
+      <option value="in">Inches (in)</option>
+    </select>
+
+    <label class="field-label">OBJ File</label>
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept=".obj" />
+      <div id="dzIdle">
+        <div class="dz-icon">📂</div>
+        <p class="dz-title">Drop <code>.obj</code> here or <span style="color:#818cf8">browse</span></p>
+        <p class="dz-hint">Wavefront OBJ files only</p>
       </div>
-    </header>
-
-    <main>
-      <!-- ── HERO ── -->
-      <section class="hero">
-        <div class="hero-inner">
-          <p class="hero-eyebrow">
-            <span class="dot-pulse"></span>
-            OBJ Fabrication Audit Pipeline
-          </p>
-          <h1 class="hero-title">
-            From 3D Model<br />
-            <span class="gradient-text">to Full Fabrication Package</span>
-          </h1>
-          <p class="hero-sub">
-            Drop any Wavefront <code>.obj</code> file and receive a complete manufacturing-ready bundle —
-            analysis JSON, bill of materials, assembly drawings, elevation sheets and individual part
-            drawings — downloaded as a single zip.
-          </p>
-
-          <!-- Metric pills -->
-          <div class="hero-metrics">
-            <div class="metric-pill">
-              <span class="metric-icon">⚙️</span>
-              <span>Geometry Analysis</span>
-            </div>
-            <div class="metric-pill">
-              <span class="metric-icon">📐</span>
-              <span>Auto Fabrication Drawings</span>
-            </div>
-            <div class="metric-pill">
-              <span class="metric-icon">📦</span>
-              <span>One-Click ZIP Download</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Pipeline preview cards -->
-        <div class="pipeline-cards" aria-label="Pipeline stages overview">
-          <article class="pipe-card">
-            <div class="pipe-icon-wrap" style="--hue: 212">
-              <span>01</span>
-            </div>
-            <h3>Upload OBJ</h3>
-            <p>Drag & drop or browse your Wavefront mesh. Select the source unit (mm / cm / m).</p>
-          </article>
-          <div class="pipe-arrow" aria-hidden="true">→</div>
-          <article class="pipe-card">
-            <div class="pipe-icon-wrap" style="--hue: 270">
-              <span>02</span>
-            </div>
-            <h3>Geometry Pipeline</h3>
-            <p>Python extracts vertices, edges, faces, components, shape classifications and dimensions.</p>
-          </article>
-          <div class="pipe-arrow" aria-hidden="true">→</div>
-          <article class="pipe-card">
-            <div class="pipe-icon-wrap" style="--hue: 320">
-              <span>03</span>
-            </div>
-            <h3>Fabrication Output</h3>
-            <p>Assembly, elevation & part drawings (PDF) plus BOM (CSV + JSON) are generated.</p>
-          </article>
-          <div class="pipe-arrow" aria-hidden="true">→</div>
-          <article class="pipe-card">
-            <div class="pipe-icon-wrap" style="--hue:  42">
-              <span>04</span>
-            </div>
-            <h3>Download ZIP</h3>
-            <p>All files are bundled into one clean zip — ready for your machinist with zero manual effort.</p>
-          </article>
-        </div>
-      </section>
-
-      <!-- ── UPLOAD CONSOLE ── -->
-      <section class="console-section" aria-label="Upload console">
-        <div class="console-layout">
-
-          <!-- Left column: uploader -->
-          <div class="console-left">
-            <div class="console-card" id="consoleCard">
-              <div class="console-card-header">
-                <span class="console-badge">Upload</span>
-                <h2 class="console-title">OBJ Upload Console</h2>
-                <p class="console-sub">Select your source unit, add the model file, then hit <em>Process</em>.</p>
-              </div>
-
-              <!-- Unit select -->
-              <label class="form-field" for="sourceUnit">
-                <span class="field-label">Source unit</span>
-                <div class="select-wrap">
-                  <select id="sourceUnit">
-                    <option value="mm">Millimeters (mm)</option>
-                    <option value="cm">Centimeters (cm)</option>
-                    <option value="m">Meters (m)</option>
-                    <option value="in">Inches (in)</option>
-                  </select>
-                  <span class="select-arrow" aria-hidden="true">▾</span>
-                </div>
-              </label>
-
-              <!-- Drop zone -->
-              <div
-                class="dropzone"
-                id="dropzone"
-                role="button"
-                tabindex="0"
-                aria-label="Upload OBJ file — click or drag and drop"
-              >
-                <input id="fileInput" type="file" accept=".obj" aria-hidden="true" />
-                <div class="dropzone-content" id="dropzoneIdle">
-                  <div class="dz-icon">
-                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                      <path d="M24 4L24 34M24 4L14 14M24 4L34 14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                      <path d="M8 34V40C8 42.2 9.8 44 12 44H36C38.2 44 40 42.2 40 40V34" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-                    </svg>
-                  </div>
-                  <p class="dz-title">Drop your <code>.obj</code> file here</p>
-                  <p class="dz-meta">or <span class="dz-browse">browse from computer</span></p>
-                  <p class="dz-hint">Wavefront OBJ geometry files only</p>
-                </div>
-                <div class="dropzone-content dropzone-ready" id="dropzoneReady" hidden>
-                  <div class="dz-icon dz-icon--ready">✓</div>
-                  <p class="dz-title dz-title--ready" id="selectedFileName">model.obj</p>
-                  <p class="dz-meta" id="selectedFileSize">0 KB</p>
-                  <p class="dz-change">Click to select a different file</p>
-                </div>
-              </div>
-
-              <!-- CTA -->
-              <button id="processBtn" class="process-btn" disabled>
-                <span class="btn-label">Process &amp; Download ZIP</span>
-                <span class="btn-spinner" aria-hidden="true"></span>
-              </button>
-
-              <p id="statusMsg" class="status-msg" aria-live="polite" aria-atomic="true"></p>
-            </div>
-          </div>
-
-          <!-- Right column: pipeline tracker + results -->
-          <div class="console-right">
-
-            <!-- Live pipeline tracker -->
-            <div class="tracker-card">
-              <p class="tracker-kicker">Backend</p>
-              <h3 class="tracker-title">Pipeline Stages</h3>
-
-              <ol class="pipeline-tracker" id="pipelineTracker">
-                <li class="tracker-step" data-step="upload" data-state="idle">
-                  <span class="step-indicator">
-                    <span class="step-dot"></span>
-                    <span class="step-line"></span>
-                  </span>
-                  <div class="step-body">
-                    <strong class="step-name">OBJ Ready</strong>
-                    <span class="step-desc">Waiting for a valid file selection.</span>
-                    <span class="step-badge" aria-live="polite">Idle</span>
-                  </div>
-                </li>
-                <li class="tracker-step" data-step="analyze" data-state="idle">
-                  <span class="step-indicator">
-                    <span class="step-dot"></span>
-                    <span class="step-line"></span>
-                  </span>
-                  <div class="step-body">
-                    <strong class="step-name">Geometry Analysis</strong>
-                    <span class="step-desc">Python audit pipeline: mesh extraction, classification, dimensions.</span>
-                    <span class="step-badge" aria-live="polite">Idle</span>
-                  </div>
-                </li>
-                <li class="tracker-step" data-step="fabricate" data-state="idle">
-                  <span class="step-indicator">
-                    <span class="step-dot"></span>
-                    <span class="step-line"></span>
-                  </span>
-                  <div class="step-body">
-                    <strong class="step-name">Drawing &amp; BOM Generation</strong>
-                    <span class="step-desc">Assembly drawings, elevation sheets, part sheets, BOM CSV &amp; JSON.</span>
-                    <span class="step-badge" aria-live="polite">Idle</span>
-                  </div>
-                </li>
-                <li class="tracker-step" data-step="package" data-state="idle">
-                  <span class="step-indicator">
-                    <span class="step-dot"></span>
-                    <span class="step-line"></span>
-                  </span>
-                  <div class="step-body">
-                    <strong class="step-name">ZIP Packaging</strong>
-                    <span class="step-desc">All outputs bundled into one download package.</span>
-                    <span class="step-badge" aria-live="polite">Idle</span>
-                  </div>
-                </li>
-              </ol>
-            </div>
-
-            <!-- Result summary (shown after success) -->
-            <div class="result-card" id="resultCard" hidden>
-              <div class="result-header">
-                <span class="result-success-icon" aria-hidden="true">✓</span>
-                <div>
-                  <p class="tracker-kicker">Output</p>
-                  <h3 class="tracker-title">Package Summary</h3>
-                </div>
-              </div>
-
-              <div class="result-stats">
-                <div class="stat-item">
-                  <span class="stat-label">Model</span>
-                  <strong class="stat-value" id="rModel">—</strong>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">Components</span>
-                  <strong class="stat-value" id="rComponents">—</strong>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">Part groups</span>
-                  <strong class="stat-value" id="rParts">—</strong>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">ZIP size</span>
-                  <strong class="stat-value" id="rZipSize">—</strong>
-                </div>
-              </div>
-
-              <div class="result-breakdown">
-                <div class="breakdown-item">
-                  <span class="breakdown-label">Package folders</span>
-                  <span class="breakdown-val" id="rFolders">analysis / bom / assembly / elevations / parts</span>
-                </div>
-                <div class="breakdown-item">
-                  <span class="breakdown-label">Generated file types</span>
-                  <span class="breakdown-val" id="rSheets">PDF · CSV · JSON</span>
-                </div>
-              </div>
-
-              <div class="result-tags-section">
-                <span class="breakdown-label">Detected object types</span>
-                <div class="tag-cloud" id="rObjectTypes">
-                  <span class="tag">Processing…</span>
-                </div>
-              </div>
-
-              <button id="downloadAgainBtn" class="download-again-btn" hidden>
-                ↓ Download ZIP Again
-              </button>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      <!-- ── OUTPUT FILES EXPLAINED ── -->
-      <section class="outputs-section">
-        <div class="outputs-inner">
-          <p class="section-eyebrow">What you get</p>
-          <h2 class="section-title">Inside the ZIP Package</h2>
-          <p class="section-sub">Every run produces a structured folder hierarchy ready for your fabrication team.</p>
-
-          <div class="outputs-grid">
-            <article class="output-tile" style="--accent: hsl(212,90%,58%)">
-              <div class="output-tile-top">
-                <span class="output-folder">📁 analysis/</span>
-              </div>
-              <h4>Analysis JSON</h4>
-              <p>Complete geometry payload — vertices, faces, edges, bounding box, component breakdown and fabrication metadata.</p>
-              <div class="output-types"><span>JSON</span></div>
-            </article>
-
-            <article class="output-tile" style="--accent: hsl(270,80%,65%)">
-              <div class="output-tile-top">
-                <span class="output-folder">📁 bom/</span>
-              </div>
-              <h4>Bill of Materials</h4>
-              <p>Structured BOM with part groups, quantities, materials, thicknesses and nominal dimensions — in both spreadsheet and JSON formats.</p>
-              <div class="output-types"><span>CSV</span><span>JSON</span></div>
-            </article>
-
-            <article class="output-tile" style="--accent: hsl(150,70%,48%)">
-              <div class="output-tile-top">
-                <span class="output-folder">📁 assembly/</span>
-              </div>
-              <h4>Assembly Drawings</h4>
-              <p>Full orthographic assembly sheet with title block, tolerance note, revision table and dimension callouts.</p>
-              <div class="output-types"><span>PDF</span></div>
-            </article>
-
-            <article class="output-tile" style="--accent: hsl(320,80%,60%)">
-              <div class="output-tile-top">
-                <span class="output-folder">📁 elevations/</span>
-              </div>
-              <h4>Elevation Sheets</h4>
-              <p>Front, side and top elevation views dimensioned to ISO/ASME drafting standards.</p>
-              <div class="output-types"><span>PDF</span></div>
-            </article>
-
-            <article class="output-tile" style="--accent: hsl(42,90%,54%)">
-              <div class="output-tile-top">
-                <span class="output-folder">📁 parts/</span>
-              </div>
-              <h4>Part Detail Drawings</h4>
-              <p>Individual part sheets for each component group — object-aligned dimensioning, centerline marks and tolerance blocks.</p>
-              <div class="output-types"><span>PDF</span></div>
-            </article>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="footer-inner">
-        <span class="brand">
-          <span class="brand-icon">⬡</span>
-          <span class="brand-name">3DMax <span class="brand-accent">Agent</span></span>
-        </span>
-        <p class="footer-note">Development Stage Preview · OBJ → Fabrication Pipeline</p>
+      <div id="dzReady" style="display:none">
+        <div class="dz-icon">✅</div>
+        <p class="dz-selected" id="dzFileName">model.obj <small id="dzFileSize"></small></p>
+        <p class="dz-hint"><span>Click to change file</span></p>
       </div>
-    </footer>
+    </div>
 
-    <script src="./app.js" defer></script>
-  </body>
+    <button id="processBtn" disabled>
+      <span class="btn-label">Process &amp; Download ZIP</span>
+      <span class="spinner"></span>
+    </button>
+
+    <p id="statusMsg" class="status-info"></p>
+
+    <hr class="divider" />
+
+    <div id="resultPanel">
+      <p class="result-title">✓ Package Ready</p>
+      <div class="result-row"><span>File</span><span id="rFile">—</span></div>
+      <div class="result-row"><span>Components</span><span id="rComponents">—</span></div>
+      <div class="result-row"><span>Part groups</span><span id="rParts">—</span></div>
+      <div class="result-row"><span>ZIP size</span><span id="rSize">—</span></div>
+      <button id="dlBtn">↓ Download ZIP</button>
+    </div>
+  </div>
+
+  <script>
+    const fileInput   = document.getElementById("fileInput");
+    const dropzone    = document.getElementById("dropzone");
+    const dzIdle      = document.getElementById("dzIdle");
+    const dzReady     = document.getElementById("dzReady");
+    const dzFileName  = document.getElementById("dzFileName");
+    const dzFileSize  = document.getElementById("dzFileSize");
+    const processBtn  = document.getElementById("processBtn");
+    const statusMsg   = document.getElementById("statusMsg");
+    const resultPanel = document.getElementById("resultPanel");
+    const dlBtn       = document.getElementById("dlBtn");
+    const sourceUnit  = document.getElementById("sourceUnit");
+
+    let selectedFile = null;
+    let zipBase64    = null;
+    let zipFilename  = null;
+
+    function formatBytes(b) {
+      if (b < 1024) return b + " B";
+      if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
+      return (b / 1048576).toFixed(2) + " MB";
+    }
+
+    function setFile(file) {
+      if (!file || !file.name.toLowerCase().endsWith(".obj")) {
+        setStatus("Only .obj files are supported.", "error"); return;
+      }
+      selectedFile = file;
+      dzFileName.childNodes[0].nodeValue = file.name + " ";
+      dzFileSize.textContent = formatBytes(file.size);
+      dzIdle.style.display  = "none";
+      dzReady.style.display = "block";
+      processBtn.disabled   = false;
+      setStatus("", "");
+    }
+
+    function setStatus(msg, type) {
+      statusMsg.textContent = msg;
+      statusMsg.className   = type ? `status-${type}` : "status-info";
+    }
+
+    function setLoading(on) {
+      processBtn.disabled = on;
+      processBtn.classList.toggle("loading", on);
+    }
+
+    fileInput.addEventListener("change", () => setFile(fileInput.files[0]));
+
+    dropzone.addEventListener("dragover",  e => { e.preventDefault(); dropzone.classList.add("over"); });
+    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("over"));
+    dropzone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropzone.classList.remove("over");
+      setFile(e.dataTransfer.files[0]);
+    });
+
+    processBtn.addEventListener("click", async () => {
+      if (!selectedFile) return;
+
+      setLoading(true);
+      setStatus("Reading file…", "info");
+      resultPanel.style.display = "none";
+      zipBase64 = null; zipFilename = null;
+
+      try {
+        const content = await selectedFile.text();
+        setStatus("Processing on server — this may take up to a minute…", "info");
+
+        const res = await fetch("/api/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: selectedFile.name, content, sourceUnit: sourceUnit.value }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.detail || "Server error");
+
+        zipBase64   = data.zipBase64;
+        zipFilename = data.filename;
+
+        const zipBytes = Math.round(atob(zipBase64).length);
+        document.getElementById("rFile").textContent       = zipFilename;
+        document.getElementById("rComponents").textContent = data.componentCount ?? "—";
+        document.getElementById("rParts").textContent      = data.partGroupCount ?? "—";
+        document.getElementById("rSize").textContent       = formatBytes(zipBytes);
+
+        resultPanel.style.display = "block";
+        setStatus("Done! Your ZIP is ready.", "ok");
+
+        // Auto-trigger download
+        triggerDownload();
+
+      } catch (err) {
+        setStatus(err.message, "error");
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    function triggerDownload() {
+      if (!zipBase64) return;
+      const bytes  = atob(zipBase64);
+      const buf    = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+      const blob   = new Blob([buf], { type: "application/zip" });
+      const url    = URL.createObjectURL(blob);
+      const a      = document.createElement("a");
+      a.href       = url; a.download = zipFilename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    dlBtn.addEventListener("click", triggerDownload);
+  </script>
+</body>
 </html>
