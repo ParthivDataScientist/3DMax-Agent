@@ -7,7 +7,7 @@ const { promisify } = require("util");
 const execFileAsync = promisify(execFile);
 
 async function runPipelineWithPython(objPath, sourceUnit, workDir) {
-  const scriptPath = path.join(process.cwd(), "pipeline", "web_package_runner.py");
+  const scriptPath = path.join(__dirname, "..", "pipeline", "web_package_runner.py");
   const candidates = [process.env.PYTHON_EXECUTABLE, "python3", "python"].filter(Boolean);
   let lastError = null;
 
@@ -24,7 +24,7 @@ async function runPipelineWithPython(objPath, sourceUnit, workDir) {
           "--work-dir",
           workDir,
         ],
-        { timeout: 120000, cwd: path.join(process.cwd(), "pipeline") }
+        { timeout: 120000, cwd: path.join(__dirname, "..", "pipeline") }
       );
 
       const parsed = JSON.parse(stdout.trim().split("\n").pop());
