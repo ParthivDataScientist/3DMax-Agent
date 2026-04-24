@@ -171,8 +171,7 @@ def layout_three_views(view_specs: list[ViewSpec], style: DrawingStyle) -> list[
     left_reserve = style.border_margin_mm + style.dimension_offset_mm + style.sheet_padding_mm
     right_reserve = style.border_margin_mm + style.dimension_offset_mm + style.sheet_padding_mm
     top_reserve = style.border_margin_mm + style.dimension_offset_mm + style.title_offset_mm + style.sheet_padding_mm
-    # Extra room below front view for: dimension lines + view title label
-    bottom_reserve = style.border_margin_mm + style.title_block_height_mm + style.dimension_offset_mm + style.title_offset_mm + style.sheet_padding_mm
+    bottom_reserve = style.border_margin_mm + style.title_block_height_mm + style.dimension_offset_mm + style.sheet_padding_mm
 
     front = replace(view_map["front"], origin_x=left_reserve, origin_y=bottom_reserve)
     top = replace(
@@ -259,10 +258,12 @@ def select_sheet_plan(raw_views: list[ViewSpec], *, layout_kind: str) -> SheetPl
                     )
 
     if candidates:
-        sheet_rank, _, _, page_spec, style, laid_out_views = sorted(
-            candidates,
-            key=lambda item: (item[0], item[1], item[2]),
-        )[0]
+        def _fill_key(item):
+            # Maximise fill ratio; break ties by preferring smaller paper then larger scale
+            page_area = item[3].width_mm * item[3].height_mm
+            fill = (page_area - item[2]) / page_area
+            return (-fill, item[0], item[1])
+        sheet_rank, _, _, page_spec, style, laid_out_views = sorted(candidates, key=_fill_key)[0]
         _ = sheet_rank
         return SheetPlan(
             page_spec=page_spec,

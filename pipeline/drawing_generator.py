@@ -705,16 +705,6 @@ def draw_view_dimensions(target: Any, view_spec: ViewSpec, *, backend: str, styl
         style=style,
     )
 
-    # Inject ASME datums and centerlines for symmetric components
-    cx = (x0 + x1) / 2.0
-    cy = (y0 + y1) / 2.0
-    if view_spec.name == "top":
-        draw_centerlines(target, (x0 - 10.0, cy), (x1 + 10.0, cy), backend=backend, style=style)
-        draw_centerlines(target, (cx, y0 - 10.0), (cx, y1 + 10.0), backend=backend, style=style)
-        draw_datum(target, "A", (cx, y1 + 15.0), backend=backend, style=style)
-    elif view_spec.name == "front":
-        draw_centerlines(target, (cx, y0 - 10.0), (cx, y1 + 10.0), backend=backend, style=style)
-        draw_datum(target, "B", (cx, y0 - 15.0), backend=backend, style=style)
 
 
 def draw_view_title(target: Any, view_spec: ViewSpec, *, backend: str, style: DrawingStyle) -> None:
