@@ -11,7 +11,7 @@
     "express": "^4.19.2"
   },
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "keywords": ["obj", "fabrication", "3d", "cad", "pipeline"],
   "license": "MIT"
