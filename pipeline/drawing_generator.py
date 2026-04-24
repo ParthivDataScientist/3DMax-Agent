@@ -477,7 +477,19 @@ def draw_edges(target: Any, view_spec: ViewSpec, *, backend: str, style: Drawing
 
 
 def draw_entities(target: Any, view_spec: ViewSpec, *, backend: str, style: DrawingStyle, layer: str = "geometry") -> None:
-    """Draw high level projected entities."""
+    """Draw high level projected entities, always including a view-outline rectangle."""
+    # Always draw the view bounding-box outline so the view is readable
+    # even for meshes that contribute no edge projections.
+    draw_rectangle(
+        target,
+        view_spec.origin_x,
+        view_spec.origin_y,
+        view_spec.width_mm,
+        view_spec.height_mm,
+        backend=backend,
+        layer=layer,
+        lineweight=style.geometry_linewidth_pt,
+    )
     if backend == "matplotlib":
         # We rely on draw_edges to draw the lines since matplotlib currently only renders the segments.
         draw_edges(target, view_spec, backend=backend, style=style)
@@ -706,12 +718,15 @@ def draw_view_dimensions(target: Any, view_spec: ViewSpec, *, backend: str, styl
 
 
 def draw_view_title(target: Any, view_spec: ViewSpec, *, backend: str, style: DrawingStyle) -> None:
-    """Draw the view label above the view."""
-    positions = DIMENSION_POSITIONS[view_spec.name]
+    """Draw the view label: TOP VIEW above its box; FRONT/SIDE below theirs."""
     title_x = view_spec.origin_x + view_spec.width_mm / 2.0
-    title_y = view_spec.origin_y + view_spec.height_mm + style.title_offset_mm
-    if positions["horizontal"] == "top":
-        title_y = view_spec.origin_y + view_spec.height_mm + style.dimension_offset_mm + (style.title_offset_mm * 0.65)
+
+    if view_spec.name == "top":
+        # Place ABOVE the top view, above the dimension line
+        title_y = view_spec.origin_y + view_spec.height_mm + style.dimension_offset_mm + style.title_offset_mm * 0.7
+    else:
+        # Place BELOW the front / side view, below the dimension line
+        title_y = view_spec.origin_y - style.dimension_offset_mm - style.title_offset_mm * 0.7
 
     if backend == "matplotlib":
         target.text(
@@ -719,8 +734,8 @@ def draw_view_title(target: Any, view_spec: ViewSpec, *, backend: str, style: Dr
             title_y,
             view_spec.title,
             ha="center",
-            va="bottom",
-            fontsize=max(9.0, style.title_text_height_mm * 0.30),
+            va="center",
+            fontsize=max(6.0, style.title_text_height_mm * 0.28),
             fontweight="bold",
             color="black",
         )
@@ -1009,7 +1024,7 @@ def generate_dxf(
     if auditor.has_errors:
         messages = "; ".join(str(error) for error in auditor.errors[:5])
         raise DrawingGenerationError(f"DXF audit reported errors: {messages}")
-    document.saveas(dxf_path)
+    document.saveas(str(dxf_path))
 
 
 def generate_outputs(json_path: Path) -> dict[str, Path]:

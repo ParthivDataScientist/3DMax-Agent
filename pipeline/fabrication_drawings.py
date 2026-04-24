@@ -46,7 +46,8 @@ ISO_SHEETS = [
     ("A1", 594.0, 841.0),
     ("A0", 841.0, 1189.0),
 ]
-SCALE_DENOMINATORS = [1, 2, 5, 10, 20]
+# Denominators < 1 = magnification (e.g. 0.2 → 5:1). Denominators > 1 = reduction (e.g. 10 → 1:10).
+SCALE_DENOMINATORS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100]
 
 
 @dataclass(frozen=True)
@@ -61,7 +62,12 @@ class PageSpec:
 
     @property
     def scale_label(self) -> str:
-        return f"1:{self.scale_denominator}"
+        d = self.scale_denominator
+        if d < 1:
+            mag = round(1.0 / d)
+            return f"{mag}:1"
+        n = int(d) if d == int(d) else d
+        return f"1:{n}"
 
     @property
     def sheet_label(self) -> str:
@@ -165,7 +171,8 @@ def layout_three_views(view_specs: list[ViewSpec], style: DrawingStyle) -> list[
     left_reserve = style.border_margin_mm + style.dimension_offset_mm + style.sheet_padding_mm
     right_reserve = style.border_margin_mm + style.dimension_offset_mm + style.sheet_padding_mm
     top_reserve = style.border_margin_mm + style.dimension_offset_mm + style.title_offset_mm + style.sheet_padding_mm
-    bottom_reserve = style.border_margin_mm + style.title_block_height_mm + style.dimension_offset_mm + style.sheet_padding_mm
+    # Extra room below front view for: dimension lines + view title label
+    bottom_reserve = style.border_margin_mm + style.title_block_height_mm + style.dimension_offset_mm + style.title_offset_mm + style.sheet_padding_mm
 
     front = replace(view_map["front"], origin_x=left_reserve, origin_y=bottom_reserve)
     top = replace(
@@ -483,7 +490,7 @@ def write_sheet(
         for view_name, labels in (labels_by_view or {}).items()
     }
     render_sheet_matplotlib(output_base, metadata, sheet_plan, notes=notes, labels_by_view=scaled_labels)
-    # render_sheet_dxf(output_base, metadata, sheet_plan, notes=notes, labels_by_view=scaled_labels)
+    render_sheet_dxf(output_base, metadata, sheet_plan, notes=notes, labels_by_view=scaled_labels)
     return sheet_plan.page_spec
 
 
@@ -551,7 +558,7 @@ def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_roo
     return {
         "assembly": [
             str((assembly_dir / "assembly").with_suffix(ext))
-            for ext in (".pdf",)
+            for ext in (".pdf", ".dxf")
         ],
         "elevations": elevation_paths,
         "assembly_sheet": [assembly_page.sheet_label, assembly_page.scale_label],
@@ -637,7 +644,10 @@ def generate_part_detail_drawings(part_groups: list[dict[str, Any]], output_root
             {
                 "part_group_id": group["part_group_id"],
                 "object_type": group["object_type"],
-                "files": [str(output_base.with_suffix(".pdf"))],
+                "files": [
+                    str(output_base.with_suffix(".pdf")),
+                    str(output_base.with_suffix(".dxf")),
+                ],
                 "sheet": page_spec.sheet_label,
                 "scale": page_spec.scale_label,
             }
