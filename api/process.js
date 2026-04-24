@@ -7,7 +7,7 @@ const { promisify } = require("util");
 const execFileAsync = promisify(execFile);
 
 async function runPipelineWithPython(objPath, sourceUnit, workDir) {
-  const scriptPath = path.join(process.cwd(), "web_package_runner.py");
+  const scriptPath = path.join(process.cwd(), "pipeline", "web_package_runner.py");
   const candidates = [process.env.PYTHON_EXECUTABLE, "python3", "python"].filter(Boolean);
   let lastError = null;
 
@@ -24,7 +24,7 @@ async function runPipelineWithPython(objPath, sourceUnit, workDir) {
           "--work-dir",
           workDir,
         ],
-        { timeout: 120000 }
+        { timeout: 120000, cwd: path.join(process.cwd(), "pipeline") }
       );
 
       const parsed = JSON.parse(stdout.trim().split("\n").pop());
@@ -54,8 +54,8 @@ module.exports = async function handler(req, res) {
     if (!filename.toLowerCase().endsWith(".obj")) {
       return res.status(400).json({ error: "Only .obj files are supported" });
     }
-    if (!["mm", "cm", "m"].includes(sourceUnit)) {
-      return res.status(400).json({ error: "sourceUnit must be mm, cm, or m" });
+    if (!["mm", "cm", "m", "in"].includes(sourceUnit)) {
+      return res.status(400).json({ error: "sourceUnit must be mm, cm, m, or in" });
     }
 
     workDir = await fs.mkdtemp(path.join(os.tmpdir(), "obj-package-"));
