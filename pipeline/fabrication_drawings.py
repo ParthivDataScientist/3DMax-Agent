@@ -395,7 +395,7 @@ def render_sheet_matplotlib(
         )
 
     figure.subplots_adjust(left=0.01, right=0.99, bottom=0.01, top=0.99)
-    figure.savefig(output_base.with_suffix(".png"), dpi=300, facecolor="white")
+    # figure.savefig(output_base.with_suffix(".png"), dpi=300, facecolor="white")
     figure.savefig(output_base.with_suffix(".pdf"), dpi=300, facecolor="white")
     plt.close(figure)
 
@@ -449,11 +449,11 @@ def render_sheet_dxf(
             text_height_mm=max(3.0, sheet_plan.style.text_height_mm),
         )
 
-    auditor = document.audit()
-    if auditor.has_errors:
-        messages = "; ".join(str(error) for error in auditor.errors[:5])
-        raise RuntimeError(f"DXF audit reported errors: {messages}")
-    document.saveas(output_base.with_suffix(".dxf"))
+    # auditor = document.audit()
+    # if auditor.has_errors:
+    #     messages = "; ".join(str(error) for error in auditor.errors[:5])
+    #     raise RuntimeError(f"DXF audit reported errors: {messages}")
+    # document.saveas(output_base.with_suffix(".dxf"))
 
 
 def orthographic_view_specs_from_payload(payload_views: dict[str, Any]) -> list[ViewSpec]:
@@ -483,7 +483,7 @@ def write_sheet(
         for view_name, labels in (labels_by_view or {}).items()
     }
     render_sheet_matplotlib(output_base, metadata, sheet_plan, notes=notes, labels_by_view=scaled_labels)
-    render_sheet_dxf(output_base, metadata, sheet_plan, notes=notes, labels_by_view=scaled_labels)
+    # render_sheet_dxf(output_base, metadata, sheet_plan, notes=notes, labels_by_view=scaled_labels)
     return sheet_plan.page_spec
 
 
@@ -546,12 +546,12 @@ def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_roo
             notes=[f"ELEVATION: {VIEW_TITLES[view_name]}"],
             labels_by_view={view_name: build_component_labels(payload, view_name)},
         )
-        elevation_paths.extend([str(output_base.with_suffix(ext)) for ext in (".png", ".pdf", ".dxf")])
+        elevation_paths.extend([str(output_base.with_suffix(".pdf"))])
 
     return {
         "assembly": [
             str((assembly_dir / "assembly").with_suffix(ext))
-            for ext in (".png", ".pdf", ".dxf")
+            for ext in (".pdf",)
         ],
         "elevations": elevation_paths,
         "assembly_sheet": [assembly_page.sheet_label, assembly_page.scale_label],
@@ -637,7 +637,7 @@ def generate_part_detail_drawings(part_groups: list[dict[str, Any]], output_root
             {
                 "part_group_id": group["part_group_id"],
                 "object_type": group["object_type"],
-                "files": [str(output_base.with_suffix(ext)) for ext in (".png", ".pdf", ".dxf")],
+                "files": [str(output_base.with_suffix(".pdf"))],
                 "sheet": page_spec.sheet_label,
                 "scale": page_spec.scale_label,
             }

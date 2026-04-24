@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3DMax Agent — OBJ Fabrication Pipeline</title>
+    <meta name="description" content="Upload a Wavefront OBJ file and instantly download a complete fabrication package — analysis JSON, BOM, assembly drawings, elevation sheets and part drawings, bundled in one zip." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+
+    <!-- Background canvas for animated particles -->
+    <canvas id="bgCanvas" aria-hidden="true"></canvas>
+
+    <!-- ── HERO / NAV ── -->
+    <header class="site-header">
+      <div class="header-inner">
+        <div class="brand">
+          <span class="brand-icon">⬡</span>
+          <span class="brand-name">3DMax <span class="brand-accent">Agent</span></span>
+        </div>
+        <nav class="header-nav">
+          <span class="badge-dev">Development Stage</span>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── HERO ── -->
+      <section class="hero">
+        <div class="hero-inner">
+          <p class="hero-eyebrow">
+            <span class="dot-pulse"></span>
+            OBJ Fabrication Audit Pipeline
+          </p>
+          <h1 class="hero-title">
+            From 3D Model<br />
+            <span class="gradient-text">to Full Fabrication Package</span>
+          </h1>
+          <p class="hero-sub">
+            Drop any Wavefront <code>.obj</code> file and receive a complete manufacturing-ready bundle —
+            analysis JSON, bill of materials, assembly drawings, elevation sheets and individual part
+            drawings — downloaded as a single zip.
+          </p>
+
+          <!-- Metric pills -->
+          <div class="hero-metrics">
+            <div class="metric-pill">
+              <span class="metric-icon">⚙️</span>
+              <span>Geometry Analysis</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-icon">📐</span>
+              <span>Auto Fabrication Drawings</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-icon">📦</span>
+              <span>One-Click ZIP Download</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pipeline preview cards -->
+        <div class="pipeline-cards" aria-label="Pipeline stages overview">
+          <article class="pipe-card">
+            <div class="pipe-icon-wrap" style="--hue: 212">
+              <span>01</span>
+            </div>
+            <h3>Upload OBJ</h3>
+            <p>Drag & drop or browse your Wavefront mesh. Select the source unit (mm / cm / m).</p>
+          </article>
+          <div class="pipe-arrow" aria-hidden="true">→</div>
+          <article class="pipe-card">
+            <div class="pipe-icon-wrap" style="--hue: 270">
+              <span>02</span>
+            </div>
+            <h3>Geometry Pipeline</h3>
+            <p>Python extracts vertices, edges, faces, components, shape classifications and dimensions.</p>
+          </article>
+          <div class="pipe-arrow" aria-hidden="true">→</div>
+          <article class="pipe-card">
+            <div class="pipe-icon-wrap" style="--hue: 320">
+              <span>03</span>
+            </div>
+            <h3>Fabrication Output</h3>
+            <p>Assembly, elevation & part drawings (PDF) plus BOM (CSV + JSON) are generated.</p>
+          </article>
+          <div class="pipe-arrow" aria-hidden="true">→</div>
+          <article class="pipe-card">
+            <div class="pipe-icon-wrap" style="--hue:  42">
+              <span>04</span>
+            </div>
+            <h3>Download ZIP</h3>
+            <p>All files are bundled into one clean zip — ready for your machinist with zero manual effort.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ── UPLOAD CONSOLE ── -->
+      <section class="console-section" aria-label="Upload console">
+        <div class="console-layout">
+
+          <!-- Left column: uploader -->
+          <div class="console-left">
+            <div class="console-card" id="consoleCard">
+              <div class="console-card-header">
+                <span class="console-badge">Upload</span>
+                <h2 class="console-title">OBJ Upload Console</h2>
+                <p class="console-sub">Select your source unit, add the model file, then hit <em>Process</em>.</p>
+              </div>
+
+              <!-- Unit select -->
+              <label class="form-field" for="sourceUnit">
+                <span class="field-label">Source unit</span>
+                <div class="select-wrap">
+                  <select id="sourceUnit">
+                    <option value="mm">Millimeters (mm)</option>
+                    <option value="cm">Centimeters (cm)</option>
+                    <option value="m">Meters (m)</option>
+                    <option value="in">Inches (in)</option>
+                  </select>
+                  <span class="select-arrow" aria-hidden="true">▾</span>
+                </div>
+              </label>
+
+              <!-- Drop zone -->
+              <div
+                class="dropzone"
+                id="dropzone"
+                role="button"
+                tabindex="0"
+                aria-label="Upload OBJ file — click or drag and drop"
+              >
+                <input id="fileInput" type="file" accept=".obj" aria-hidden="true" />
+                <div class="dropzone-content" id="dropzoneIdle">
+                  <div class="dz-icon">
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                      <path d="M24 4L24 34M24 4L14 14M24 4L34 14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      <path d="M8 34V40C8 42.2 9.8 44 12 44H36C38.2 44 40 42.2 40 40V34" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                  </div>
+                  <p class="dz-title">Drop your <code>.obj</code> file here</p>
+                  <p class="dz-meta">or <span class="dz-browse">browse from computer</span></p>
+                  <p class="dz-hint">Wavefront OBJ geometry files only</p>
+                </div>
+                <div class="dropzone-content dropzone-ready" id="dropzoneReady" hidden>
+                  <div class="dz-icon dz-icon--ready">✓</div>
+                  <p class="dz-title dz-title--ready" id="selectedFileName">model.obj</p>
+                  <p class="dz-meta" id="selectedFileSize">0 KB</p>
+                  <p class="dz-change">Click to select a different file</p>
+                </div>
+              </div>
+
+              <!-- CTA -->
+              <button id="processBtn" class="process-btn" disabled>
+                <span class="btn-label">Process &amp; Download ZIP</span>
+                <span class="btn-spinner" aria-hidden="true"></span>
+              </button>
+
+              <p id="statusMsg" class="status-msg" aria-live="polite" aria-atomic="true"></p>
+            </div>
+          </div>
+
+          <!-- Right column: pipeline tracker + results -->
+          <div class="console-right">
+
+            <!-- Live pipeline tracker -->
+            <div class="tracker-card">
+              <p class="tracker-kicker">Backend</p>
+              <h3 class="tracker-title">Pipeline Stages</h3>
+
+              <ol class="pipeline-tracker" id="pipelineTracker">
+                <li class="tracker-step" data-step="upload" data-state="idle">
+                  <span class="step-indicator">
+                    <span class="step-dot"></span>
+                    <span class="step-line"></span>
+                  </span>
+                  <div class="step-body">
+                    <strong class="step-name">OBJ Ready</strong>
+                    <span class="step-desc">Waiting for a valid file selection.</span>
+                    <span class="step-badge" aria-live="polite">Idle</span>
+                  </div>
+                </li>
+                <li class="tracker-step" data-step="analyze" data-state="idle">
+                  <span class="step-indicator">
+                    <span class="step-dot"></span>
+                    <span class="step-line"></span>
+                  </span>
+                  <div class="step-body">
+                    <strong class="step-name">Geometry Analysis</strong>
+                    <span class="step-desc">Python audit pipeline: mesh extraction, classification, dimensions.</span>
+                    <span class="step-badge" aria-live="polite">Idle</span>
+                  </div>
+                </li>
+                <li class="tracker-step" data-step="fabricate" data-state="idle">
+                  <span class="step-indicator">
+                    <span class="step-dot"></span>
+                    <span class="step-line"></span>
+                  </span>
+                  <div class="step-body">
+                    <strong class="step-name">Drawing &amp; BOM Generation</strong>
+                    <span class="step-desc">Assembly drawings, elevation sheets, part sheets, BOM CSV &amp; JSON.</span>
+                    <span class="step-badge" aria-live="polite">Idle</span>
+                  </div>
+                </li>
+                <li class="tracker-step" data-step="package" data-state="idle">
+                  <span class="step-indicator">
+                    <span class="step-dot"></span>
+                    <span class="step-line"></span>
+                  </span>
+                  <div class="step-body">
+                    <strong class="step-name">ZIP Packaging</strong>
+                    <span class="step-desc">All outputs bundled into one download package.</span>
+                    <span class="step-badge" aria-live="polite">Idle</span>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            <!-- Result summary (shown after success) -->
+            <div class="result-card" id="resultCard" hidden>
+              <div class="result-header">
+                <span class="result-success-icon" aria-hidden="true">✓</span>
+                <div>
+                  <p class="tracker-kicker">Output</p>
+                  <h3 class="tracker-title">Package Summary</h3>
+                </div>
+              </div>
+
+              <div class="result-stats">
+                <div class="stat-item">
+                  <span class="stat-label">Model</span>
+                  <strong class="stat-value" id="rModel">—</strong>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Components</span>
+                  <strong class="stat-value" id="rComponents">—</strong>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Part groups</span>
+                  <strong class="stat-value" id="rParts">—</strong>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">ZIP size</span>
+                  <strong class="stat-value" id="rZipSize">—</strong>
+                </div>
+              </div>
+
+              <div class="result-breakdown">
+                <div class="breakdown-item">
+                  <span class="breakdown-label">Package folders</span>
+                  <span class="breakdown-val" id="rFolders">analysis / bom / assembly / elevations / parts</span>
+                </div>
+                <div class="breakdown-item">
+                  <span class="breakdown-label">Generated file types</span>
+                  <span class="breakdown-val" id="rSheets">PDF · CSV · JSON</span>
+                </div>
+              </div>
+
+              <div class="result-tags-section">
+                <span class="breakdown-label">Detected object types</span>
+                <div class="tag-cloud" id="rObjectTypes">
+                  <span class="tag">Processing…</span>
+                </div>
+              </div>
+
+              <button id="downloadAgainBtn" class="download-again-btn" hidden>
+                ↓ Download ZIP Again
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ── OUTPUT FILES EXPLAINED ── -->
+      <section class="outputs-section">
+        <div class="outputs-inner">
+          <p class="section-eyebrow">What you get</p>
+          <h2 class="section-title">Inside the ZIP Package</h2>
+          <p class="section-sub">Every run produces a structured folder hierarchy ready for your fabrication team.</p>
+
+          <div class="outputs-grid">
+            <article class="output-tile" style="--accent: hsl(212,90%,58%)">
+              <div class="output-tile-top">
+                <span class="output-folder">📁 analysis/</span>
+              </div>
+              <h4>Analysis JSON</h4>
+              <p>Complete geometry payload — vertices, faces, edges, bounding box, component breakdown and fabrication metadata.</p>
+              <div class="output-types"><span>JSON</span></div>
+            </article>
+
+            <article class="output-tile" style="--accent: hsl(270,80%,65%)">
+              <div class="output-tile-top">
+                <span class="output-folder">📁 bom/</span>
+              </div>
+              <h4>Bill of Materials</h4>
+              <p>Structured BOM with part groups, quantities, materials, thicknesses and nominal dimensions — in both spreadsheet and JSON formats.</p>
+              <div class="output-types"><span>CSV</span><span>JSON</span></div>
+            </article>
+
+            <article class="output-tile" style="--accent: hsl(150,70%,48%)">
+              <div class="output-tile-top">
+                <span class="output-folder">📁 assembly/</span>
+              </div>
+              <h4>Assembly Drawings</h4>
+              <p>Full orthographic assembly sheet with title block, tolerance note, revision table and dimension callouts.</p>
+              <div class="output-types"><span>PDF</span></div>
+            </article>
+
+            <article class="output-tile" style="--accent: hsl(320,80%,60%)">
+              <div class="output-tile-top">
+                <span class="output-folder">📁 elevations/</span>
+              </div>
+              <h4>Elevation Sheets</h4>
+              <p>Front, side and top elevation views dimensioned to ISO/ASME drafting standards.</p>
+              <div class="output-types"><span>PDF</span></div>
+            </article>
+
+            <article class="output-tile" style="--accent: hsl(42,90%,54%)">
+              <div class="output-tile-top">
+                <span class="output-folder">📁 parts/</span>
+              </div>
+              <h4>Part Detail Drawings</h4>
+              <p>Individual part sheets for each component group — object-aligned dimensioning, centerline marks and tolerance blocks.</p>
+              <div class="output-types"><span>PDF</span></div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span class="brand">
+          <span class="brand-icon">⬡</span>
+          <span class="brand-name">3DMax <span class="brand-accent">Agent</span></span>
+        </span>
+        <p class="footer-note">Development Stage Preview · OBJ → Fabrication Pipeline</p>
+      </div>
+    </footer>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>

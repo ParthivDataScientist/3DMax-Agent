@@ -22,6 +22,7 @@ SOURCE_UNIT_SCALES = {
     "mm": 1.0,
     "cm": 10.0,
     "m": 1000.0,
+    "in": 25.4,
 }
 EPSILON = 1e-9
 FEATURE_EDGE_ANGLE_DEGREES = 30.0

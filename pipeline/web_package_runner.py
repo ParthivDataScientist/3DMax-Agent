@@ -13,7 +13,7 @@ from FabricationPackage import build_fabrication_package
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--obj-path", required=True)
-    parser.add_argument("--source-unit", required=True, choices=("mm", "cm", "m"))
+    parser.add_argument("--source-unit", required=True, choices=("mm", "cm", "m", "in"))
     parser.add_argument("--work-dir", required=True)
     return parser.parse_args()
 

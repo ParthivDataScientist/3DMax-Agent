@@ -1,0 +1,18 @@
+{
+  "name": "3dmax-agent",
+  "version": "1.0.0",
+  "description": "OBJ → Fabrication Package web interface — local dev server",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["obj", "fabrication", "3d", "cad", "pipeline"],
+  "license": "MIT"
+}

@@ -1,65 +1,70 @@
-# OBJ Measurement Extractor
+# ⬡ 3DMax Agent — Fabrication Audit Pipeline
 
-Phase 1 prototype for reading a Wavefront `.obj` mesh and returning structured JSON that a later AutoCAD measurement step can consume.
+**3DMax Agent** is a production-grade geometry intelligence engine that transforms raw 3D meshes into manufacturing-ready fabrication packages. It automates the extraction of measurements, structural classification, and technical drawing generation for furniture, booths, and architectural models.
 
-The current pipeline also performs higher-level geometry understanding on top of the mesh extraction:
+![3DMax Agent UI](file:///C:/Users/MU_ICT_025/.gemini/antigravity/brain/946472d7-3adf-49cd-85b1-f044d8eb8161/hero_header_top_1776145990988.png)
 
-- disconnected component segmentation
-- shape classification for `box`, `cylinder`, `sphere`, `flat panel`, and `irregular`
-- planar face clustering
-- orientation detection
-- semantic labeling for booth-style structures such as panels, beams, pillars, and platforms
+## 🚀 Key Features
 
-## Setup
+*   **Premium Web Workspace**: A high-fidelity, glassmorphic UI for managing audits and tracking pipeline progress in real-time.
+*   **Intelligent Geometry Pipeline**: Automatic segmentation, shape classification (`box`, `cylinder`, `panel`, etc.), and dimension extraction from Wavefront `.obj` files.
+*   **Auto-Fabrication Drawings**: Instant generation of orthographic assembly sheets, elevations, and part-detail drawings in **PNG**, **PDF**, and **DXF** formats.
+*   **Dynamic BOM Generation**: Automated Bill of Materials with material assignment and part grouping.
+*   **One-Click Packaging**: Downloads all generated artifacts in a structured ZIP archive ready for the machine shop.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
+## 🏗️ Technical Architecture
 
-## Run
+The project utilizes a hybrid Node.js and Python stack to deliver high-performance geometry analysis with a modern web experience:
 
-```powershell
-.\.venv\Scripts\python.exe .\Extract.py .\path\to\model.obj
-```
+*   **Frontend**: Vanilla JS + Modern CSS (Glassmorphism, animated particles, CSS variables).
+*   **Backend**: Node.js (Express) with robust subprocess management and virtual environment integration.
+*   **Pipeline**: Python 3.x using `trimesh` for geometry analysis, `ezdxf` for CAD generation, and `matplotlib` for technical sheets.
 
-The command writes the JSON result into the `output` folder and prints only the saved file path in the terminal.
+## 🛠️ Getting Started
 
-## Generate Drawings
+### Prerequisites
 
-After the analysis JSON is created, generate orthographic drawing outputs from it:
+*   **Node.js** (v18+)
+*   **Python** (v3.10+)
 
-```powershell
-.\.venv\Scripts\python.exe .\GenerateDrawing.py .\output\box_analysis.json
-```
+### Setup
 
-This creates these files in the `output` folder:
+1.  **Install Node dependencies**:
+    ```bash
+    npm install
+    ```
 
-- `*_drawing.png`
-- `*_drawing.pdf`
-- `*_drawing.dxf`
+2.  **Initialize Python Virtual Environment**:
+    ```bash
+    python -m venv .venv
+    .\.venv\Scripts\activate  # Windows
+    pip install -r requirements.txt
+    ```
 
-The drawing generator reads the top-level `views` block from the JSON and builds:
+3.  **Run the Development Server**:
+    ```bash
+    npm run dev
+    ```
+    Access the workspace at `http://localhost:3000`.
 
-- a matplotlib technical drawing sheet
-- an AutoCAD-compatible DXF using `ezdxf`
+## 📁 Package Structure
 
-## Output
+Every fabrication run generates a structured output directory bundled into a ZIP:
 
-The script returns JSON with these top-level sections:
+| Directory | Content | Formats |
+| :--- | :--- | :--- |
+| `analysis/` | Deep geometry payload and classification data. | `.json` |
+| `bom/` | Bill of materials and part group signatures. | `.csv`, `.json` |
+| `assembly/` | Orthographic assembly drawings with title blocks. | `.png`, `.pdf`, `.dxf` |
+| `elevations/` | Top, Front, and Side elevation views. | `.png`, `.pdf`, `.dxf` |
+| `parts/` | Detailed part sheets with centerline marks. | `.png`, `.pdf`, `.dxf` |
 
-- `input`
-- `validation`
-- `overall_dimensions`
-- `bounding_box`
-- `mesh_metrics`
-- `vertices`
-- `edges`
-- `faces`
-- `views`
-- `component_summary`
-- `components`
+## ⚖️ Standards
 
-Each item in `components` contains its own geometry, planar regions, dimensions, shape classification, orientation, and semantic role.
+All generated drawings adhere to **ISO/ASME** drafting standards, including:
+*   Precise centerline and datum alignment.
+*   Standard tolerance blocks.
+*   Mathematically accurate dimensions based on object-aligned geometry.
 
-If the file cannot be processed, the script writes an error JSON file into `output` and exits with a non-zero status code.
+---
+*Developed for the Advanced Agentic Coding Workspace.*

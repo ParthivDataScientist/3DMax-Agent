@@ -204,7 +204,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--source-unit",
         required=True,
-        choices=("mm", "cm", "m"),
+        choices=("mm", "cm", "m", "in"),
         help="Unit used by the source OBJ geometry before normalization to millimeters.",
     )
     parser.add_argument(
