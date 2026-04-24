@@ -13,10 +13,11 @@ from typing import Any
 import numpy as np
 
 
-CACHE_DIR = Path(".cache")
-CACHE_DIR.mkdir(exist_ok=True)
-os.environ.setdefault("XDG_CACHE_HOME", str(CACHE_DIR.resolve()))
-os.environ.setdefault("MPLCONFIGDIR", str((CACHE_DIR / "matplotlib" / str(os.getpid())).resolve()))
+import tempfile as _tempfile
+CACHE_DIR = Path(_tempfile.gettempdir()) / "obj-agent-cache"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("XDG_CACHE_HOME", str(CACHE_DIR))
+os.environ.setdefault("MPLCONFIGDIR", str(CACHE_DIR / "matplotlib" / str(os.getpid())))
 os.environ.setdefault("EZDXF_DISABLE_CACHING", "1")
 Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
 
