@@ -48,6 +48,7 @@ ISO_SHEETS = [
 ]
 # Denominators < 1 = magnification (e.g. 0.2 → 5:1). Denominators > 1 = reduction (e.g. 10 → 1:10).
 SCALE_DENOMINATORS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100]
+OUTPUT_EXTENSIONS = (".png", ".pdf", ".dxf")
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,7 @@ class PageSpec:
     orientation: str
     width_mm: float
     height_mm: float
-    scale_denominator: int
+    scale_denominator: float
 
     @property
     def scale_label(self) -> str:
@@ -122,6 +123,7 @@ def view_spec_from_view_payload(view_name: str, view_payload: dict[str, Any]) ->
         vertical_axis=str(view_payload["vertical_axis"]),
         depth_axis=str(view_payload["depth_axis"]),
         projected_edges=edges,
+        projected_entities=tuple(view_payload.get("entities", [])),
     )
 
 
@@ -148,7 +150,29 @@ def build_page_style(view_specs: list[ViewSpec]) -> DrawingStyle:
     )
 
 
-def scale_view_spec(view_spec: ViewSpec, scale_denominator: int) -> ViewSpec:
+def scale_point(point: list[float] | tuple[float, float], scale_denominator: float) -> list[float]:
+    """Scale a two-dimensional model-space point into paper-space."""
+    return [float(point[0]) / scale_denominator, float(point[1]) / scale_denominator]
+
+
+def scale_projected_entity(entity: dict[str, Any], scale_denominator: float) -> dict[str, Any]:
+    """Scale projected DXF-style entities without mutating the analysis payload."""
+    scaled = dict(entity)
+    entity_type = str(entity.get("type", "LINE")).upper()
+
+    if entity_type == "LINE":
+        scaled["start"] = scale_point(entity["start"], scale_denominator)
+        scaled["end"] = scale_point(entity["end"], scale_denominator)
+    elif entity_type == "LWPOLYLINE":
+        scaled["points"] = [scale_point(point, scale_denominator) for point in entity.get("points", [])]
+    elif entity_type == "CIRCLE":
+        scaled["center"] = scale_point(entity["center"], scale_denominator)
+        scaled["radius"] = float(entity["radius"]) / scale_denominator
+
+    return scaled
+
+
+def scale_view_spec(view_spec: ViewSpec, scale_denominator: float) -> ViewSpec:
     """Convert model-space view geometry into paper-space using the chosen scale."""
     scaled_edges = tuple(
         (
@@ -157,11 +181,16 @@ def scale_view_spec(view_spec: ViewSpec, scale_denominator: int) -> ViewSpec:
         )
         for start, end in view_spec.projected_edges
     )
+    scaled_entities = tuple(
+        scale_projected_entity(entity, scale_denominator)
+        for entity in view_spec.projected_entities
+    )
     return replace(
         view_spec,
         width_mm=view_spec.width_mm / scale_denominator,
         height_mm=view_spec.height_mm / scale_denominator,
         projected_edges=scaled_edges,
+        projected_entities=scaled_entities,
     )
 
 
@@ -194,6 +223,22 @@ def layout_single_view(view_spec: ViewSpec, style: DrawingStyle) -> list[ViewSpe
     return [replace(view_spec, origin_x=origin_x, origin_y=origin_y)]
 
 
+def layout_view_row(view_specs: list[ViewSpec], style: DrawingStyle) -> list[ViewSpec]:
+    """Place one or more views left-to-right, useful for plan/elevation sheets."""
+    origin_x = style.border_margin_mm + style.dimension_offset_mm + style.sheet_padding_mm
+    origin_y = style.border_margin_mm + style.title_block_height_mm + style.dimension_offset_mm + style.sheet_padding_mm
+    max_height = max((view.height_mm for view in view_specs), default=0.0)
+    laid_out: list[ViewSpec] = []
+    cursor_x = origin_x
+
+    for view in view_specs:
+        view_y = origin_y + ((max_height - view.height_mm) / 2.0)
+        laid_out.append(replace(view, origin_x=cursor_x, origin_y=view_y))
+        cursor_x += view.width_mm + style.view_gap_mm
+
+    return laid_out
+
+
 def required_sheet_size(view_specs: list[ViewSpec], style: DrawingStyle) -> tuple[float, float]:
     """Compute the minimum paper-space size required for the placed content."""
     max_x = max((view.origin_x + view.width_mm for view in view_specs), default=0.0)
@@ -217,20 +262,21 @@ def fixed_sheet_layout(page_spec: PageSpec, style: DrawingStyle) -> SheetLayout:
 
 def select_sheet_plan(raw_views: list[ViewSpec], *, layout_kind: str) -> SheetPlan:
     """Select the smallest ISO sheet that fits at the largest readable scale."""
-    if layout_kind not in {"orthographic", "single"}:
+    if layout_kind not in {"orthographic", "single", "row"}:
         raise ValueError(f"Unsupported layout kind: {layout_kind}")
 
-    candidates: list[tuple[int, int, float, PageSpec, DrawingStyle, list[ViewSpec]]] = []
-    fallback: tuple[float, int, DrawingStyle, list[ViewSpec]] | None = None
+    candidates: list[tuple[int, float, float, PageSpec, DrawingStyle, list[ViewSpec]]] = []
+    fallback: tuple[float, float, DrawingStyle, list[ViewSpec]] | None = None
 
     for scale_denominator in SCALE_DENOMINATORS:
         scaled_views = [scale_view_spec(view, scale_denominator) for view in raw_views]
         style = build_page_style(scaled_views)
-        laid_out_views = (
-            layout_three_views(scaled_views, style)
-            if layout_kind == "orthographic"
-            else layout_single_view(scaled_views[0], style)
-        )
+        if layout_kind == "orthographic":
+            laid_out_views = layout_three_views(scaled_views, style)
+        elif layout_kind == "row":
+            laid_out_views = layout_view_row(scaled_views, style)
+        else:
+            laid_out_views = layout_single_view(scaled_views[0], style)
         required_width, required_height = required_sheet_size(laid_out_views, style)
         required_area = required_width * required_height
 
@@ -286,7 +332,7 @@ def select_sheet_plan(raw_views: list[ViewSpec], *, layout_kind: str) -> SheetPl
     )
 
 
-def scale_labels(labels: list[LabelSpec], scale_denominator: int) -> list[LabelSpec]:
+def scale_labels(labels: list[LabelSpec], scale_denominator: float) -> list[LabelSpec]:
     """Convert model-space label anchors into paper-space coordinates."""
     return [
         LabelSpec(
@@ -315,6 +361,17 @@ def component_label_for_view(
     )
 
 
+def component_plan_label_for_view(
+    component: dict[str, Any],
+    assembly_min: list[float],
+    view_name: str,
+) -> LabelSpec:
+    """Create a descriptive top-plan label inspired by exhibition CAD sheets."""
+    label = str(component.get("part_name") or component.get("object_type") or component["instance_id"])
+    labeled_component = {**component, "instance_id": f"{component['instance_id']} {label}".strip()}
+    return component_label_for_view(labeled_component, assembly_min, view_name)
+
+
 def build_component_labels(payload: dict[str, Any], view_name: str) -> list[LabelSpec]:
     """Create instance-ID callouts for assembly/elevation drawings."""
     assembly_min = [float(value) for value in payload["bounding_box"]["min"]]
@@ -322,6 +379,38 @@ def build_component_labels(payload: dict[str, Any], view_name: str) -> list[Labe
         component_label_for_view(component, assembly_min, view_name)
         for component in payload.get("components", [])
     ]
+
+
+def build_component_plan_labels(payload: dict[str, Any], view_name: str) -> list[LabelSpec]:
+    """Create descriptive labels for overall plan sheets."""
+    assembly_min = [float(value) for value in payload["bounding_box"]["min"]]
+    return [
+        component_plan_label_for_view(component, assembly_min, view_name)
+        for component in payload.get("components", [])
+    ]
+
+
+def sheet_files(output_base: Path) -> list[str]:
+    """Return the generated paths for a sheet in package order."""
+    return [str(output_base.with_suffix(extension)) for extension in OUTPUT_EXTENSIONS]
+
+
+def sheet_record(
+    sheet_no: str,
+    title: str,
+    category: str,
+    output_base: Path,
+    page_spec: PageSpec,
+) -> dict[str, Any]:
+    """Build manifest metadata for one generated shop-style sheet."""
+    return {
+        "sheet_no": sheet_no,
+        "title": title,
+        "category": category,
+        "files": sheet_files(output_base),
+        "sheet": page_spec.sheet_label,
+        "scale": page_spec.scale_label,
+    }
 
 
 def draw_labels(target: Any, labels: list[LabelSpec], *, backend: str, view_offset: tuple[float, float], text_height_mm: float) -> None:
@@ -370,6 +459,7 @@ def render_sheet_matplotlib(
     *,
     notes: list[str],
     labels_by_view: dict[str, list[LabelSpec]] | None = None,
+    show_dimensions: bool = True,
 ) -> None:
     """Render one fabrication sheet to PNG and PDF using matplotlib."""
     labels_by_view = labels_by_view or {}
@@ -391,7 +481,8 @@ def render_sheet_matplotlib(
 
     for view in sheet_plan.view_specs:
         draw_entities(axis, view, backend="matplotlib", style=sheet_plan.style)
-        draw_view_dimensions(axis, view, backend="matplotlib", style=sheet_plan.style)
+        if show_dimensions:
+            draw_view_dimensions(axis, view, backend="matplotlib", style=sheet_plan.style)
         draw_view_title(axis, view, backend="matplotlib", style=sheet_plan.style)
         labels = labels_by_view.get(view.name, [])
         draw_labels(
@@ -403,7 +494,7 @@ def render_sheet_matplotlib(
         )
 
     figure.subplots_adjust(left=0.01, right=0.99, bottom=0.01, top=0.99)
-    # figure.savefig(output_base.with_suffix(".png"), dpi=300, facecolor="white")
+    figure.savefig(output_base.with_suffix(".png"), dpi=300, facecolor="white")
     figure.savefig(output_base.with_suffix(".pdf"), dpi=300, facecolor="white")
     plt.close(figure)
 
@@ -415,6 +506,7 @@ def render_sheet_dxf(
     *,
     notes: list[str],
     labels_by_view: dict[str, list[LabelSpec]] | None = None,
+    show_dimensions: bool = True,
 ) -> None:
     """Render one fabrication sheet to DXF."""
     labels_by_view = labels_by_view or {}
@@ -446,7 +538,8 @@ def render_sheet_dxf(
 
     for view in sheet_plan.view_specs:
         draw_entities(modelspace, view, backend="dxf", style=sheet_plan.style, layer="OUTLINE")
-        draw_view_dimensions(modelspace, view, backend="dxf", style=sheet_plan.style)
+        if show_dimensions:
+            draw_view_dimensions(modelspace, view, backend="dxf", style=sheet_plan.style)
         draw_view_title(modelspace, view, backend="dxf", style=sheet_plan.style)
         labels = labels_by_view.get(view.name, [])
         draw_labels(
@@ -457,11 +550,7 @@ def render_sheet_dxf(
             text_height_mm=max(3.0, sheet_plan.style.text_height_mm),
         )
 
-    # auditor = document.audit()
-    # if auditor.has_errors:
-    #     messages = "; ".join(str(error) for error in auditor.errors[:5])
-    #     raise RuntimeError(f"DXF audit reported errors: {messages}")
-    # document.saveas(output_base.with_suffix(".dxf"))
+    document.saveas(output_base.with_suffix(".dxf"))
 
 
 def orthographic_view_specs_from_payload(payload_views: dict[str, Any]) -> list[ViewSpec]:
@@ -477,6 +566,7 @@ def write_sheet(
     layout_kind: str,
     notes: list[str],
     labels_by_view: dict[str, list[LabelSpec]] | None = None,
+    show_dimensions: bool = True,
 ) -> PageSpec:
     """Select page/scale, then export PNG, PDF, and DXF for one sheet."""
     output_base.parent.mkdir(parents=True, exist_ok=True)
@@ -490,12 +580,26 @@ def write_sheet(
         view_name: scale_labels(labels, sheet_plan.page_spec.scale_denominator)
         for view_name, labels in (labels_by_view or {}).items()
     }
-    render_sheet_matplotlib(output_base, metadata, sheet_plan, notes=notes, labels_by_view=scaled_labels)
-    render_sheet_dxf(output_base, metadata, sheet_plan, notes=notes, labels_by_view=scaled_labels)
+    render_sheet_matplotlib(
+        output_base,
+        metadata,
+        sheet_plan,
+        notes=notes,
+        labels_by_view=scaled_labels,
+        show_dimensions=show_dimensions,
+    )
+    render_sheet_dxf(
+        output_base,
+        metadata,
+        sheet_plan,
+        notes=notes,
+        labels_by_view=scaled_labels,
+        show_dimensions=show_dimensions,
+    )
     return sheet_plan.page_spec
 
 
-def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_root: Path) -> dict[str, list[str]]:
+def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_root: Path) -> dict[str, Any]:
     """Export assembly and per-view elevation sheets from the full analysis payload."""
     output_root.mkdir(parents=True, exist_ok=True)
     assembly_dir = output_root / "assembly"
@@ -506,15 +610,17 @@ def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_roo
     source_name = str(payload["input"]["file_name"])
     model_name = str(payload["input"]["mesh_name"]).upper()
     raw_views = orthographic_view_specs_from_payload(payload["views"])
+    view_by_name = {view.name: view for view in raw_views}
 
     import datetime
+    today = datetime.date.today().isoformat()
     assembly_metadata = DrawingMetadata(
         drawing_name=f"{model_name.upper()} ASSEMBLY DRAWING",
         source_name=source_name.upper(),
         units="mm",
         material="MIXED (SEE BOM)",
         revision="A",
-        date_str=datetime.date.today().isoformat(),
+        date_str=today,
         drafter="AI DRAFTING",
     )
     assembly_notes = [
@@ -525,8 +631,9 @@ def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_roo
         view_name: build_component_labels(payload, view_name)
         for view_name in ("front", "top", "side")
     }
+    assembly_base = assembly_dir / "assembly"
     assembly_page = write_sheet(
-        assembly_dir / "assembly",
+        assembly_base,
         assembly_metadata,
         raw_views,
         layout_kind="orthographic",
@@ -534,7 +641,65 @@ def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_roo
         labels_by_view=assembly_labels,
     )
 
-    elevation_paths: list[str] = []
+    generated_sheets: list[dict[str, Any]] = [
+        sheet_record("ASM", "ASSEMBLY DRAWING", "assembly", assembly_base, assembly_page)
+    ]
+
+    overall_plan_base = assembly_dir / "SHT - 01 OVERALL PLAN"
+    overall_plan_page = write_sheet(
+        overall_plan_base,
+        replace(assembly_metadata, drawing_name=f"{model_name.upper()} OVERALL PLAN"),
+        [view_by_name["top"]],
+        layout_kind="single",
+        notes=[
+            "OVERALL PLAN",
+            f"COMPONENT COUNT: {len(payload.get('components', []))}",
+        ],
+        labels_by_view={"top": build_component_plan_labels(payload, "top")},
+        show_dimensions=False,
+    )
+    generated_sheets.append(
+        sheet_record("SHT - 01", "OVERALL PLAN", "plan", overall_plan_base, overall_plan_page)
+    )
+
+    dimensioned_plan_base = assembly_dir / "SHT - 02 PLAN WITH DIMENSIONS"
+    dimensioned_plan_page = write_sheet(
+        dimensioned_plan_base,
+        replace(assembly_metadata, drawing_name=f"{model_name.upper()} PLAN WITH DIMENSIONS"),
+        [view_by_name["top"]],
+        layout_kind="single",
+        notes=["PLAN WITH DIMENSIONS"],
+        labels_by_view={"top": build_component_labels(payload, "top")},
+    )
+    generated_sheets.append(
+        sheet_record("SHT - 02", "PLAN WITH DIMENSIONS", "plan", dimensioned_plan_base, dimensioned_plan_page)
+    )
+
+    combined_elevation_base = elevations_dir / "SHT - 03 ELEVATION"
+    combined_elevation_page = write_sheet(
+        combined_elevation_base,
+        DrawingMetadata(
+            drawing_name=f"{model_name.upper()} ELEVATION",
+            source_name=source_name.upper(),
+            units="mm",
+            material="MIXED",
+            revision="A",
+            date_str=today,
+            drafter="AI DRAFTING",
+        ),
+        [view_by_name["front"], view_by_name["side"]],
+        layout_kind="row",
+        notes=["ELEVATION", "FRONT VIEW / SIDE VIEW"],
+        labels_by_view={
+            "front": build_component_labels(payload, "front"),
+            "side": build_component_labels(payload, "side"),
+        },
+    )
+    generated_sheets.append(
+        sheet_record("SHT - 03", "ELEVATION", "elevation", combined_elevation_base, combined_elevation_page)
+    )
+
+    elevation_paths: list[str] = sheet_files(combined_elevation_base)
     for view_name in ("front", "top", "side"):
         view_metadata = DrawingMetadata(
             drawing_name=f"{model_name.upper()} {VIEW_TITLES[view_name]}",
@@ -542,11 +707,11 @@ def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_roo
             units="mm",
             material="MIXED",
             revision="A",
-            date_str=datetime.date.today().isoformat(),
+            date_str=today,
             drafter="AI DRAFTING",
         )
         output_base = elevations_dir / f"elevation_{view_name}"
-        write_sheet(
+        view_page = write_sheet(
             output_base,
             view_metadata,
             [view_spec_from_view_payload(view_name, payload["views"][view_name])],
@@ -554,14 +719,21 @@ def generate_assembly_and_elevation_drawings(payload: dict[str, Any], output_roo
             notes=[f"ELEVATION: {VIEW_TITLES[view_name]}"],
             labels_by_view={view_name: build_component_labels(payload, view_name)},
         )
-        elevation_paths.extend([str(output_base.with_suffix(".pdf"))])
+        elevation_paths.extend(sheet_files(output_base))
+        generated_sheets.append(
+            sheet_record(
+                f"ELEVATION-{view_name.upper()}",
+                VIEW_TITLES[view_name],
+                "elevation",
+                output_base,
+                view_page,
+            )
+        )
 
     return {
-        "assembly": [
-            str((assembly_dir / "assembly").with_suffix(ext))
-            for ext in (".pdf", ".dxf")
-        ],
+        "assembly": sheet_files(assembly_base) + sheet_files(overall_plan_base) + sheet_files(dimensioned_plan_base),
         "elevations": elevation_paths,
+        "sheets": generated_sheets,
         "assembly_sheet": [assembly_page.sheet_label, assembly_page.scale_label],
     }
 
@@ -572,10 +744,10 @@ def generate_part_detail_drawings(part_groups: list[dict[str, Any]], output_root
     parts_dir.mkdir(parents=True, exist_ok=True)
 
     drawing_records: list[dict[str, Any]] = []
-    for group in part_groups:
+    for sheet_number, group in enumerate(part_groups, start=4):
         component = group["representative_component"]
         raw_views = orthographic_view_specs_from_payload(component["geometry"]["views"])
-        output_base = parts_dir / slugify(group["file_basename"])
+        output_base = parts_dir / f"SHT - {sheet_number:02d} {group['part_name']} DETAILS"
         notes = [
             "PART NOTES",
             f"PART ID: {group['part_group_id']}",
@@ -645,10 +817,9 @@ def generate_part_detail_drawings(part_groups: list[dict[str, Any]], output_root
             {
                 "part_group_id": group["part_group_id"],
                 "object_type": group["object_type"],
-                "files": [
-                    str(output_base.with_suffix(".pdf")),
-                    str(output_base.with_suffix(".dxf")),
-                ],
+                "sheet_no": f"SHT - {sheet_number:02d}",
+                "title": f"{group['part_name']} DETAILS",
+                "files": sheet_files(output_base),
                 "sheet": page_spec.sheet_label,
                 "scale": page_spec.scale_label,
             }

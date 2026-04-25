@@ -109,6 +109,7 @@ def build_output_structure(
         "analysis_json": str(analysis_path),
         "assembly": assembly_records.get("assembly", []),
         "elevations": assembly_records.get("elevations", []),
+        "sheets": assembly_records.get("sheets", []),
         "parts": part_records,
         "bom": {
             "csv": str(bom_csv_path),
@@ -189,6 +190,7 @@ def build_fabrication_package(obj_path: str, source_unit: str, output_root: str 
         "analysis_json": analysis_path,
         "assembly": assembly_records.get("assembly", []),
         "elevations": assembly_records.get("elevations", []),
+        "sheets": assembly_records.get("sheets", []),
         "bom_csv": bom_csv_path,
         "bom_json": bom_json_path,
         "parts": part_records,

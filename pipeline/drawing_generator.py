@@ -496,6 +496,10 @@ def draw_entities(target: Any, view_spec: ViewSpec, *, backend: str, style: Draw
         return
 
     if backend == "dxf":
+        if not view_spec.projected_entities:
+            draw_edges(target, view_spec, backend=backend, style=style)
+            return
+
         for ent in view_spec.projected_entities:
             ety = ent.get("type", "LINE")
             ent_layer = ent.get("layer", layer)
@@ -907,8 +911,8 @@ def draw_title_block(
     _header("DRAFTER", c3_2, r3 + row_h)
     _val(metadata.drafter, c3_2, r3)
     _header("GENERAL TOLERANCES", c3_3, r3 + row_h)
-    add_left_text(target, "LINEAR: ± 0.1 mm", (c3_3 + 5.0, r3 + row_h * 0.45), backend=backend, height_mm=header_h)
-    add_left_text(target, "ANGULAR: ± 0.5°", (c3_3 + 5.0, r3 + row_h * 0.15), backend=backend, height_mm=header_h)
+    add_left_text(target, "LINEAR: +/- 0.1 mm", (c3_3 + 5.0, r3 + row_h * 0.45), backend=backend, height_mm=header_h)
+    add_left_text(target, "ANGULAR: +/- 0.5 deg", (c3_3 + 5.0, r3 + row_h * 0.15), backend=backend, height_mm=header_h)
     
     _header("UNITS", x, r4 + row_h)
     _val(metadata.units.upper(), x, r4)
