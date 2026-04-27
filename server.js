@@ -30,8 +30,25 @@ const execFileAsync = promisify(execFile);
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ── Body parsing (JSON, up to 100 MB for large OBJ content strings) ──
-app.use(express.json({ limit: "100mb" }));
+function parseUploadLimitMb(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+}
+
+const MAX_OBJ_UPLOAD_MB = parseUploadLimitMb(process.env.MAX_OBJ_UPLOAD_MB);
+const MAX_OBJ_UPLOAD_BYTES = MAX_OBJ_UPLOAD_MB * 1024 * 1024;
+const JSON_BODY_LIMIT_MB = Math.ceil(MAX_OBJ_UPLOAD_MB * 1.5);
+
+// ── Body parsing (JSON overhead included for large OBJ content strings) ──
+app.use(express.json({ limit: `${JSON_BODY_LIMIT_MB}mb` }));
+app.use((err, _req, res, next) => {
+  if (err?.type === "entity.too.large") {
+    return res.status(413).json({
+      error: `Request body is too large. Upload .obj files up to ${MAX_OBJ_UPLOAD_MB} MB.`,
+    });
+  }
+  return next(err);
+});
 
 // ── Static files (serve HTML, CSS, JS from public folder) ────────────
 app.use(express.static(path.join(__dirname, "public")));
@@ -78,6 +95,11 @@ app.post("/api/process", async (req, res) => {
     }
     if (!content || typeof content !== "string") {
       return res.status(400).json({ error: "Missing file content." });
+    }
+    if (Buffer.byteLength(content, "utf8") > MAX_OBJ_UPLOAD_BYTES) {
+      return res.status(413).json({
+        error: `OBJ file is too large. Maximum size is ${MAX_OBJ_UPLOAD_MB} MB.`,
+      });
     }
     if (!filename.toLowerCase().endsWith(".obj")) {
       return res.status(400).json({ error: "Only Wavefront .obj files are supported." });

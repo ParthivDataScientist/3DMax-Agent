@@ -6,6 +6,14 @@ const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
 
+function parseUploadLimitMb(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+}
+
+const MAX_OBJ_UPLOAD_MB = parseUploadLimitMb(process.env.MAX_OBJ_UPLOAD_MB);
+const MAX_OBJ_UPLOAD_BYTES = MAX_OBJ_UPLOAD_MB * 1024 * 1024;
+
 async function runPipelineWithPython(objPath, sourceUnit, workDir) {
   const scriptPath = path.join(__dirname, "..", "pipeline", "web_package_runner.py");
   const candidates = [process.env.PYTHON_EXECUTABLE, "python3", "python"].filter(Boolean);
@@ -50,6 +58,11 @@ module.exports = async function handler(req, res) {
     }
     if (!content || typeof content !== "string") {
       return res.status(400).json({ error: "Missing file content" });
+    }
+    if (Buffer.byteLength(content, "utf8") > MAX_OBJ_UPLOAD_BYTES) {
+      return res.status(413).json({
+        error: `OBJ file is too large. Maximum size is ${MAX_OBJ_UPLOAD_MB} MB.`,
+      });
     }
     if (!filename.toLowerCase().endsWith(".obj")) {
       return res.status(400).json({ error: "Only .obj files are supported" });

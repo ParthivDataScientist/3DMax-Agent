@@ -212,7 +212,7 @@
       <div id="dzIdle">
         <div class="dz-icon">📂</div>
         <p class="dz-title">Drop <code>.obj</code> here or <span style="color:#818cf8">browse</span></p>
-        <p class="dz-hint">Wavefront OBJ files only</p>
+        <p class="dz-hint">Wavefront OBJ files up to 30 MB</p>
       </div>
       <div id="dzReady" style="display:none">
         <div class="dz-icon">✅</div>
@@ -253,6 +253,9 @@
     const dlBtn       = document.getElementById("dlBtn");
     const sourceUnit  = document.getElementById("sourceUnit");
 
+    const MAX_OBJ_UPLOAD_MB = 30;
+    const MAX_OBJ_UPLOAD_BYTES = MAX_OBJ_UPLOAD_MB * 1024 * 1024;
+
     let selectedFile = null;
     let zipBase64    = null;
     let zipFilename  = null;
@@ -264,8 +267,17 @@
     }
 
     function setFile(file) {
-      if (!file || !file.name.toLowerCase().endsWith(".obj")) {
+      if (!file) {
+        clearSelectedFile();
+        setStatus("", ""); return;
+      }
+      if (!file.name.toLowerCase().endsWith(".obj")) {
+        clearSelectedFile();
         setStatus("Only .obj files are supported.", "error"); return;
+      }
+      if (file.size > MAX_OBJ_UPLOAD_BYTES) {
+        clearSelectedFile();
+        setStatus(`File is ${formatBytes(file.size)}. Maximum allowed size is ${MAX_OBJ_UPLOAD_MB} MB.`, "error"); return;
       }
       selectedFile = file;
       dzFileName.childNodes[0].nodeValue = file.name + " ";
@@ -274,6 +286,14 @@
       dzReady.style.display = "block";
       processBtn.disabled   = false;
       setStatus("", "");
+    }
+
+    function clearSelectedFile() {
+      selectedFile = null;
+      fileInput.value = "";
+      dzIdle.style.display  = "block";
+      dzReady.style.display = "none";
+      processBtn.disabled   = true;
     }
 
     function setStatus(msg, type) {

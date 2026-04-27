@@ -13,7 +13,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -29,6 +29,40 @@ from geometry_pipeline import ExtractionError              # noqa: E402
 app = FastAPI(title="3DMax Agent", version="1.0.0")
 
 ALLOWED_UNITS = {"mm", "cm", "m", "in"}
+DEFAULT_MAX_OBJ_UPLOAD_MB = 30
+
+
+def upload_limit_mb() -> int:
+    try:
+        value = int(os.getenv("MAX_OBJ_UPLOAD_MB", str(DEFAULT_MAX_OBJ_UPLOAD_MB)))
+    except ValueError:
+        return DEFAULT_MAX_OBJ_UPLOAD_MB
+    return max(1, value)
+
+
+MAX_OBJ_UPLOAD_MB = upload_limit_mb()
+MAX_OBJ_UPLOAD_BYTES = MAX_OBJ_UPLOAD_MB * 1024 * 1024
+MAX_JSON_BODY_BYTES = MAX_OBJ_UPLOAD_BYTES + (MAX_OBJ_UPLOAD_BYTES // 2)
+
+
+@app.middleware("http")
+async def reject_oversized_process_requests(request: Request, call_next):
+    if request.url.path == "/api/process":
+        content_length = request.headers.get("content-length")
+        try:
+            if content_length and int(content_length) > MAX_JSON_BODY_BYTES:
+                return JSONResponse(
+                    {
+                        "detail": (
+                            f"Request body is too large. Upload .obj files up to "
+                            f"{MAX_OBJ_UPLOAD_MB} MB."
+                        )
+                    },
+                    status_code=413,
+                )
+        except ValueError:
+            pass
+    return await call_next(request)
 
 
 # ── Request schema ─────────────────────────────────────────────────────────────
@@ -48,6 +82,8 @@ async def process_obj(req: ProcessRequest) -> JSONResponse:
         raise HTTPException(status_code=400, detail=f"sourceUnit must be one of: {', '.join(sorted(ALLOWED_UNITS))}")
     if not req.content.strip():
         raise HTTPException(status_code=400, detail="File content is empty.")
+    if len(req.content.encode("utf-8")) > MAX_OBJ_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"OBJ file is too large. Maximum size is {MAX_OBJ_UPLOAD_MB} MB.")
 
     work_dir = tempfile.mkdtemp(prefix="obj-agent-")
     try:
