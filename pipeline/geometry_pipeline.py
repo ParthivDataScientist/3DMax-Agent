@@ -78,6 +78,63 @@ def normalize_vector(vector: np.ndarray) -> np.ndarray:
     return vector / norm
 
 
+def clean_mesh_geometry(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
+    """Drop unreferenced vertices and zero-area faces before analysis."""
+    mesh.remove_unreferenced_vertices()
+    if len(mesh.faces):
+        nondegenerate = mesh.nondegenerate_faces(height=EPSILON)
+        if not bool(np.all(nondegenerate)):
+            mesh.update_faces(nondegenerate)
+            mesh.remove_unreferenced_vertices()
+    return mesh
+
+
+def safe_average_vectors(vectors: np.ndarray, weights: np.ndarray | None = None) -> np.ndarray:
+    values = np.asarray(vectors, dtype=float)
+    if values.ndim != 2 or values.shape[0] == 0:
+        return np.zeros(3, dtype=float)
+
+    finite_rows = np.isfinite(values).all(axis=1)
+    values = values[finite_rows]
+    if values.shape[0] == 0:
+        return np.zeros(vectors.shape[1] if np.ndim(vectors) == 2 else 3, dtype=float)
+
+    if weights is not None:
+        cleaned_weights = np.asarray(weights, dtype=float)[finite_rows]
+        cleaned_weights = np.where(np.isfinite(cleaned_weights) & (cleaned_weights > EPSILON), cleaned_weights, 0.0)
+        if float(cleaned_weights.sum()) > EPSILON:
+            return np.average(values, axis=0, weights=cleaned_weights)
+
+    return values.mean(axis=0)
+
+
+def safe_mesh_centroid(mesh: trimesh.Trimesh) -> np.ndarray:
+    try:
+        centroid = np.asarray(mesh.centroid, dtype=float)
+        if centroid.shape == (3,) and np.isfinite(centroid).all():
+            return centroid
+    except ValueError:
+        pass
+
+    vertices = np.asarray(mesh.vertices, dtype=float)
+    finite_vertices = vertices[np.isfinite(vertices).all(axis=1)]
+    if len(finite_vertices):
+        return finite_vertices.mean(axis=0)
+
+    return np.zeros(3, dtype=float)
+
+
+def safe_mesh_center_of_mass(mesh: trimesh.Trimesh) -> np.ndarray:
+    if mesh.is_volume:
+        try:
+            center_mass = np.asarray(mesh.center_mass, dtype=float)
+            if center_mass.shape == (3,) and np.isfinite(center_mass).all():
+                return center_mass
+        except ValueError:
+            pass
+    return safe_mesh_centroid(mesh)
+
+
 def angle_between_vectors(first: np.ndarray, second: np.ndarray) -> float:
     first_normalized = normalize_vector(first)
     second_normalized = normalize_vector(second)
@@ -204,12 +261,19 @@ def load_mesh(obj_path: Path) -> tuple[trimesh.Trimesh, dict[str, Any]]:
             f"Unsupported geometry type returned by trimesh: {type(loaded).__name__}",
         )
 
-    mesh.remove_unreferenced_vertices()
-    for _, geom in named_meshes:
-        geom.remove_unreferenced_vertices()
+    mesh = clean_mesh_geometry(mesh)
+    cleaned_named_meshes = []
+    for name, geom in named_meshes:
+        cleaned = clean_mesh_geometry(geom.copy())
+        if cleaned.vertices.size == 0 or cleaned.faces.size == 0:
+            continue
+        cleaned_named_meshes.append((name, cleaned))
+    named_meshes = cleaned_named_meshes
 
     if mesh.vertices.size == 0 or mesh.faces.size == 0:
-        raise ExtractionError("empty_mesh", "OBJ file does not contain measurable mesh faces.")
+        raise ExtractionError("empty_mesh", "OBJ file does not contain measurable non-degenerate mesh faces.")
+    if not named_meshes:
+        raise ExtractionError("empty_mesh", "OBJ file does not contain measurable non-degenerate mesh components.")
 
     metadata = {
         "source_type": source_type,
@@ -231,7 +295,7 @@ def split_components(named_meshes: list[tuple[str, trimesh.Trimesh]]) -> list[tu
 
         for component in submeshes:
             cleaned = component.copy()
-            cleaned.remove_unreferenced_vertices()
+            cleaned = clean_mesh_geometry(cleaned)
             if cleaned.vertices.size == 0 or cleaned.faces.size == 0:
                 continue
             components.append((source_name, cleaned))
@@ -454,8 +518,8 @@ def summarize_planar_region(
     region_areas = face_areas[face_indices]
     region_area = float(region_areas.sum())
 
-    centroid = np.average(region_centers, axis=0, weights=region_areas)
-    average_normal = normalize_vector(np.average(region_normals, axis=0, weights=region_areas))
+    centroid = safe_average_vectors(region_centers, region_areas)
+    average_normal = normalize_vector(safe_average_vectors(region_normals, region_areas))
 
     if len(face_indices) >= 3:
         centered_points = region_centers - centroid
@@ -491,7 +555,10 @@ def build_planar_regions(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
     face_normals = np.asarray(mesh.face_normals, dtype=float)
     face_centers = np.asarray(mesh.triangles_center, dtype=float)
     face_areas = np.asarray(mesh.area_faces, dtype=float)
-    total_area = float(mesh.area) if mesh.area > EPSILON else float(face_areas.sum())
+    valid_face_mask = np.isfinite(face_areas) & (face_areas > EPSILON)
+    if not bool(valid_face_mask.any()):
+        return []
+    total_area = float(mesh.area) if mesh.area > EPSILON else float(face_areas[valid_face_mask].sum())
 
     adjacency_map: dict[int, list[int]] = defaultdict(list)
     for first_face, second_face in np.asarray(mesh.face_adjacency, dtype=int):
@@ -499,7 +566,7 @@ def build_planar_regions(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
         adjacency_map[int(second_face)].append(int(first_face))
 
     distance_tolerance = max(float(np.max(mesh.extents)) * PLANAR_DISTANCE_RATIO, EPSILON)
-    visited = np.zeros(face_count, dtype=bool)
+    visited = np.logical_not(valid_face_mask)
     clusters: list[dict[str, Any]] = []
 
     for start_face in range(face_count):
@@ -518,6 +585,9 @@ def build_planar_regions(mesh: trimesh.Trimesh) -> list[dict[str, Any]]:
 
             for neighbor_face in adjacency_map.get(current_face, []):
                 if visited[neighbor_face]:
+                    continue
+                if not valid_face_mask[neighbor_face]:
+                    visited[neighbor_face] = True
                     continue
 
                 normal_angle = angle_between_vectors(face_normals[neighbor_face], reference_normal)
@@ -776,8 +846,8 @@ def build_mesh_measurements(mesh: trimesh.Trimesh) -> dict[str, Any]:
         "mesh_metrics": {
             "surface_area": round_number(mesh.area),
             "volume": volume,
-            "center_of_mass": round_vector(mesh.center_mass if volume is not None else mesh.centroid),
-            "mesh_centroid": round_vector(mesh.centroid),
+            "center_of_mass": round_vector(safe_mesh_center_of_mass(mesh)),
+            "mesh_centroid": round_vector(safe_mesh_centroid(mesh)),
         },
         "vertices": build_vertices(mesh),
         "edges": edges,
