@@ -31,13 +31,12 @@ def main() -> int:
 
     package_root = Path(results["package_root"])
     zip_base = work_dir / f"{package_root.name}_package"
-    # Zip only fabrication outputs — exclude analysis/ (internal app data)
-    EXCLUDE = {"analysis"}
+    # Zip the full package, including analysis/ so component-level measurements are available.
     import zipfile
     zip_path = str(zip_base) + ".zip"
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for item in package_root.rglob("*"):
-            if item.is_file() and item.relative_to(package_root).parts[0] not in EXCLUDE:
+            if item.is_file():
                 zf.write(item, item.relative_to(package_root))
 
     print(

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -13,6 +15,7 @@ from classification import build_assembly_context, classify_object, placement_fo
 from fabrication_drawings import (
     generate_assembly_and_elevation_drawings,
     generate_part_detail_drawings,
+    generate_subassembly_drawings,
     slugify,
 )
 from geometry_pipeline import ExtractionError, extract_measurements, round_number
@@ -27,6 +30,66 @@ def normalize_path_argument(path_parts: list[str]) -> Path:
 def display_part_name(object_type: str) -> str:
     """Convert a snake_case object type into a fabrication title."""
     return object_type.replace("_", " ").upper()
+
+
+ASSEMBLY_PREFIXES = (
+    ("floor_platform", "BOOTH FLOOR"),
+    ("back_wall", "BOOTH WALLS"),
+    ("left_wall", "BOOTH WALLS"),
+    ("right_wall", "BOOTH WALLS"),
+    ("front_left_square_post", "BOOTH FRAME"),
+    ("front_right_square_post", "BOOTH FRAME"),
+    ("back_left_square_post", "BOOTH FRAME"),
+    ("back_right_square_post", "BOOTH FRAME"),
+    ("mid_back_square_post", "BOOTH FRAME"),
+    ("front_open_header", "BOOTH FRAME"),
+    ("back_header", "BOOTH FRAME"),
+    ("left_header", "BOOTH FRAME"),
+    ("right_header", "BOOTH FRAME"),
+    ("backlit_brand", "BRAND SIGNAGE"),
+    ("small_logo", "BRAND SIGNAGE"),
+    ("center_table", "CENTER TABLE"),
+    ("shoe_rack", "SHOE RACK"),
+    ("front_demo_counter", "FRONT DEMO COUNTER"),
+    ("left_display", "LEFT DISPLAY SHELVES"),
+    ("brochure_stand", "BROCHURE STAND"),
+    ("brochure_holder", "BROCHURE STAND"),
+)
+
+
+def clean_display_name(value: str) -> str:
+    """Convert an OBJ object name into a readable all-caps label."""
+    normalized = re.sub(r"[^a-zA-Z0-9]+", " ", value).strip()
+    return normalized.upper() or "UNNAMED COMPONENT"
+
+
+def parent_assembly_name(source_name: str, object_type: str) -> str:
+    """Derive the parent/subassembly name for a component."""
+    normalized = source_name.strip().lower()
+    for prefix, display_name in ASSEMBLY_PREFIXES:
+        if normalized.startswith(prefix):
+            return display_name
+
+    tokens = [token for token in re.split(r"[^a-z0-9]+", normalized) if token]
+    if len(tokens) >= 2:
+        return clean_display_name("_".join(tokens[:2]))
+    if tokens:
+        return clean_display_name(tokens[0])
+    return display_part_name(object_type)
+
+
+def assign_subassembly_metadata(components: list[dict[str, Any]]) -> None:
+    """Attach component and parent-assembly names used by drawings and schedules."""
+    for component in components:
+        source_name = str(component.get("source_name") or "")
+        object_type = str(component.get("object_type") or "generic_part")
+        component["component_name"] = clean_display_name(source_name)
+        component["parent_assembly"] = parent_assembly_name(source_name, object_type)
+
+    ordered_names = sorted({str(component.get("parent_assembly") or "UNASSIGNED") for component in components})
+    subassembly_ids = {name: f"A{index:03d}" for index, name in enumerate(ordered_names, start=1)}
+    for component in components:
+        component["subassembly_id"] = subassembly_ids[str(component.get("parent_assembly") or "UNASSIGNED")]
 
 
 def enrich_fabrication_metadata(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
@@ -52,6 +115,7 @@ def enrich_fabrication_metadata(payload: dict[str, Any]) -> tuple[list[dict[str,
         component.update(material_assignment)
         object_type_counts[object_type] += 1
 
+    assign_subassembly_metadata(components)
     part_groups = group_parts(components)
     bom_rows = generate_bom(part_groups)
     payload.setdefault("component_summary", {})["object_type_counts"] = dict(object_type_counts)
@@ -84,6 +148,9 @@ def serializable_part_groups(
                 "dimensions": group["dimensions"],
                 "file_basename": group["file_basename"],
                 "source_name": group.get("source_name", "unknown"),
+                "component_name": group.get("component_name", group.get("source_name", "unknown")),
+                "parent_assembly": group.get("parent_assembly", "UNASSIGNED"),
+                "subassembly_id": group.get("subassembly_id", "A000"),
                 "manual_review_required": group.get("manual_review_required", False),
                 "shape": group.get("shape", "unknown"),
                 "files": drawing_record.get("files", []),
@@ -98,24 +165,108 @@ def serializable_part_groups(
 def build_output_structure(
     package_root: Path,
     analysis_path: Path,
+    component_schedule_path: Path,
     bom_csv_path: Path,
     bom_json_path: Path,
     assembly_records: dict[str, Any],
+    subassembly_records: list[dict[str, Any]],
     part_records: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Create a JSON-friendly manifest of generated fabrication artifacts."""
     return {
         "root": str(package_root),
+        "analysis": {
+            "json": str(analysis_path),
+            "component_schedule_csv": str(component_schedule_path),
+        },
         "analysis_json": str(analysis_path),
         "assembly": assembly_records.get("assembly", []),
         "elevations": assembly_records.get("elevations", []),
         "sheets": assembly_records.get("sheets", []),
+        "subassemblies": subassembly_records,
         "parts": part_records,
         "bom": {
             "csv": str(bom_csv_path),
             "json": str(bom_json_path),
         },
     }
+
+
+def component_schedule_rows(components: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Create a flat component measurement schedule for booth review."""
+    rows: list[dict[str, Any]] = []
+    for component in components:
+        dimensions = component.get("dimensions", {})
+        placement = component.get("placement", {})
+        bounding_box = component.get("geometry", {}).get("bounding_box", {})
+        bbox_size = bounding_box.get("size", [None, None, None])
+        flags = component.get("fabrication", {}).get("flags", [])
+        rows.append(
+            {
+                "instance_id": component.get("instance_id"),
+                "source_name": component.get("source_name"),
+                "component_name": component.get("component_name"),
+                "parent_assembly": component.get("parent_assembly"),
+                "subassembly_id": component.get("subassembly_id"),
+                "object_type": component.get("object_type"),
+                "part_group_id": component.get("part_group_id"),
+                "part_name": component.get("part_name"),
+                "shape": component.get("shape"),
+                "orientation": component.get("orientation"),
+                "material": component.get("material"),
+                "nominal_thickness_mm": component.get("nominal_thickness_mm"),
+                "measured_thickness_mm": component.get("measured_thickness_mm"),
+                "length_mm": dimensions.get("length"),
+                "width_mm": dimensions.get("width"),
+                "height_mm": dimensions.get("height"),
+                "thickness_mm": dimensions.get("thickness"),
+                "bbox_x_mm": bbox_size[0] if len(bbox_size) > 0 else None,
+                "bbox_y_mm": bbox_size[1] if len(bbox_size) > 1 else None,
+                "bbox_z_mm": bbox_size[2] if len(bbox_size) > 2 else None,
+                "bottom_z_mm": placement.get("bottom_z"),
+                "top_z_mm": placement.get("top_z"),
+                "on_floor": placement.get("on_floor"),
+                "manual_review_required": component.get("fabrication", {}).get("manual_review_required", False),
+                "flags": ";".join(str(flag) for flag in flags),
+            }
+        )
+    return rows
+
+
+def write_component_schedule_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
+    """Write a human-readable CSV schedule for per-component measurements."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "instance_id",
+        "source_name",
+        "component_name",
+        "parent_assembly",
+        "subassembly_id",
+        "object_type",
+        "part_group_id",
+        "part_name",
+        "shape",
+        "orientation",
+        "material",
+        "nominal_thickness_mm",
+        "measured_thickness_mm",
+        "length_mm",
+        "width_mm",
+        "height_mm",
+        "thickness_mm",
+        "bbox_x_mm",
+        "bbox_y_mm",
+        "bbox_z_mm",
+        "bottom_z_mm",
+        "top_z_mm",
+        "on_floor",
+        "manual_review_required",
+        "flags",
+    ]
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def prepare_package_root(package_root: Path) -> tuple[Path, Path]:
@@ -125,14 +276,17 @@ def prepare_package_root(package_root: Path) -> tuple[Path, Path]:
     assembly_dir = package_root / "assembly"
     elevations_dir = package_root / "elevations"
     parts_dir = package_root / "parts"
+    subassemblies_dir = package_root / "subassemblies"
 
-    for subdirectory in (analysis_dir, bom_dir, assembly_dir, elevations_dir, parts_dir):
+    for subdirectory in (analysis_dir, bom_dir, assembly_dir, elevations_dir, parts_dir, subassemblies_dir):
         subdirectory.mkdir(parents=True, exist_ok=True)
 
     cleanup_patterns = {
+        analysis_dir: ("*.json", "*.csv"),
         assembly_dir: ("*.png", "*.pdf", "*.dxf"),
         elevations_dir: ("*.png", "*.pdf", "*.dxf"),
         parts_dir: ("*.png", "*.pdf", "*.dxf"),
+        subassemblies_dir: ("*.png", "*.pdf", "*.dxf"),
         bom_dir: ("*.csv", "*.json"),
     }
     for directory, patterns in cleanup_patterns.items():
@@ -159,6 +313,7 @@ def build_fabrication_package(obj_path: str, source_unit: str, output_root: str 
     analysis_dir, bom_dir = prepare_package_root(package_root)
 
     assembly_records = generate_assembly_and_elevation_drawings(payload, package_root)
+    subassembly_records = generate_subassembly_drawings(payload, package_root)
     part_records = generate_part_detail_drawings(part_groups, package_root)
 
     bom_csv_path = bom_dir / "bom.csv"
@@ -167,20 +322,27 @@ def build_fabrication_package(obj_path: str, source_unit: str, output_root: str 
     write_bom_json(bom_rows, bom_json_path)
 
     analysis_path = analysis_dir / f"{model_slug}_analysis.json"
+    component_schedule_path = analysis_dir / "component_schedule.csv"
+    component_schedule = component_schedule_rows(payload.get("components", []))
+    write_component_schedule_csv(component_schedule, component_schedule_path)
     payload["fabrication"] = {
         "assembly_context": {
             key: round_number(float(value))
             for key, value in assembly_context.items()
         },
+        "component_schedule": component_schedule,
+        "subassemblies": subassembly_records,
         "part_groups": serializable_part_groups(part_groups, part_records),
         "bom": bom_rows,
     }
     payload["fabrication"]["output_structure"] = build_output_structure(
         package_root=package_root,
         analysis_path=analysis_path,
+        component_schedule_path=component_schedule_path,
         bom_csv_path=bom_csv_path,
         bom_json_path=bom_json_path,
         assembly_records=assembly_records,
+        subassembly_records=subassembly_records,
         part_records=part_records,
     )
     analysis_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -188,9 +350,11 @@ def build_fabrication_package(obj_path: str, source_unit: str, output_root: str 
     return {
         "package_root": package_root,
         "analysis_json": analysis_path,
+        "component_schedule_csv": component_schedule_path,
         "assembly": assembly_records.get("assembly", []),
         "elevations": assembly_records.get("elevations", []),
         "sheets": assembly_records.get("sheets", []),
+        "subassemblies": subassembly_records,
         "bom_csv": bom_csv_path,
         "bom_json": bom_json_path,
         "parts": part_records,

@@ -11,8 +11,14 @@ function parseUploadLimitMb(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
 }
 
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 const MAX_OBJ_UPLOAD_MB = parseUploadLimitMb(process.env.MAX_OBJ_UPLOAD_MB);
 const MAX_OBJ_UPLOAD_BYTES = MAX_OBJ_UPLOAD_MB * 1024 * 1024;
+const PIPELINE_TIMEOUT_MS = parsePositiveInteger(process.env.PIPELINE_TIMEOUT_MS, 1_200_000);
 
 async function runPipelineWithPython(objPath, sourceUnit, workDir) {
   const scriptPath = path.join(__dirname, "..", "pipeline", "web_package_runner.py");
@@ -32,13 +38,20 @@ async function runPipelineWithPython(objPath, sourceUnit, workDir) {
           "--work-dir",
           workDir,
         ],
-        { timeout: 120000, cwd: path.join(__dirname, "..", "pipeline") }
+        { timeout: PIPELINE_TIMEOUT_MS, cwd: path.join(__dirname, "..", "pipeline") }
       );
 
       const parsed = JSON.parse(stdout.trim().split("\n").pop());
       return parsed;
     } catch (error) {
-      lastError = error;
+      if (error.killed || error.signal) {
+        lastError = new Error(
+          `Pipeline timed out after ${Math.round(PIPELINE_TIMEOUT_MS / 1000)} seconds.`
+        );
+      } else {
+        const detail = error.stderr || error.stdout || error.message;
+        lastError = new Error(String(detail).slice(0, 1600));
+      }
     }
   }
 

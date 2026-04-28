@@ -106,15 +106,14 @@ async def process_obj(req: ProcessRequest) -> JSONResponse:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Pipeline error: {exc}")
 
-        # Zip fabrication outputs — exclude analysis/ (internal app data)
+        # Zip the full package, including analysis/ so component-level measurements are available.
         import zipfile
-        EXCLUDE = {"analysis"}
         package_root: Path = results["package_root"]
         zip_base = os.path.join(work_dir, f"{package_root.name}_package")
         zip_path = zip_base + ".zip"
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for item in package_root.rglob("*"):
-                if item.is_file() and item.relative_to(package_root).parts[0] not in EXCLUDE:
+                if item.is_file():
                     zf.write(item, item.relative_to(package_root))
 
         # Read zip as base64

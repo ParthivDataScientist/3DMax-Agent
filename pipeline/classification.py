@@ -63,7 +63,7 @@ def classify_object(component_analysis: dict[str, Any], assembly_context: dict[s
         return "acrylic_logo"
 
     if orientation == "vertical" and 6.0 <= thickness <= 25.0 and height >= 1800.0:
-        return "wall_panel"
+        return "wall_panel" 
 
     if orientation == "vertical" and 12.0 <= thickness <= 40.0 and 1200.0 <= height <= 2200.0:
         return "partition"

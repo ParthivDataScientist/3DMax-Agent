@@ -35,9 +35,15 @@ function parseUploadLimitMb(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
 }
 
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 const MAX_OBJ_UPLOAD_MB = parseUploadLimitMb(process.env.MAX_OBJ_UPLOAD_MB);
 const MAX_OBJ_UPLOAD_BYTES = MAX_OBJ_UPLOAD_MB * 1024 * 1024;
 const JSON_BODY_LIMIT_MB = Math.ceil(MAX_OBJ_UPLOAD_MB * 1.5);
+const PIPELINE_TIMEOUT_MS = parsePositiveInteger(process.env.PIPELINE_TIMEOUT_MS, 1_200_000);
 
 // ── Body parsing (JSON overhead included for large OBJ content strings) ──
 app.use(express.json({ limit: `${JSON_BODY_LIMIT_MB}mb` }));
@@ -121,19 +127,34 @@ app.post("/api/process", async (req, res) => {
     console.log(`  Python: ${pythonCmd}`);
     console.log(`  Work dir: ${workDir}`);
 
-    const { stdout, stderr } = await execFileAsync(
-      pythonCmd,
-      [
-        scriptPath,
-        "--obj-path",   objPath,
-        "--source-unit", sourceUnit,
-        "--work-dir",   workDir,
-      ],
-      {
-        timeout: 180_000, // 3 minutes max
-        cwd: path.join(__dirname, "pipeline"),
+    let stdout = "";
+    let stderr = "";
+    try {
+      const result = await execFileAsync(
+        pythonCmd,
+        [
+          scriptPath,
+          "--obj-path",   objPath,
+          "--source-unit", sourceUnit,
+          "--work-dir",   workDir,
+        ],
+        {
+          timeout: PIPELINE_TIMEOUT_MS,
+          cwd: path.join(__dirname, "pipeline"),
+        }
+      );
+      stdout = result.stdout;
+      stderr = result.stderr;
+    } catch (error) {
+      if (error.killed || error.signal) {
+        throw new Error(
+          `Pipeline timed out after ${Math.round(PIPELINE_TIMEOUT_MS / 1000)} seconds. ` +
+          "Large booth files can take longer; use process_obj.py for local terminal processing."
+        );
       }
-    );
+      const detail = error.stderr || error.stdout || error.message;
+      throw new Error(`Pipeline failed: ${String(detail).slice(0, 1600)}`);
+    }
 
     if (stderr) {
       // Surface Python warnings to server log but don't fail unless

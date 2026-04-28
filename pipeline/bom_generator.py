@@ -53,6 +53,7 @@ def build_part_signature(component: dict[str, Any]) -> str:
         "object_type": component["object_type"],
         "material": component["material"],
         "material_family": component["material_family"],
+        "parent_assembly": component.get("parent_assembly", "UNASSIGNED"),
         "nominal_thickness_mm": round(float(component["nominal_thickness_mm"]), 3),
         "dimensions": rounded_dimensions(component),
         "edge_signature": build_edge_signature(component),
@@ -84,6 +85,9 @@ def group_parts(components: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "nominal_thickness_mm": component["nominal_thickness_mm"],
                 "dimensions": rounded_dimensions(component),
                 "source_name": component.get("source_name", "unknown"),
+                "component_name": component.get("component_name", component.get("source_name", "unknown")),
+                "parent_assembly": component.get("parent_assembly", "UNASSIGNED"),
+                "subassembly_id": component.get("subassembly_id", "A000"),
                 "manual_review_required": component.get("fabrication", {}).get("manual_review_required", False),
                 "shape": component.get("shape", "unknown"),
             }
@@ -129,7 +133,10 @@ def generate_bom(part_groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "thickness_mm": group["nominal_thickness_mm"],
                 "material": group["material"],
                 "quantity": group["quantity"],
+                "parent_assembly": group.get("parent_assembly", "UNASSIGNED"),
+                "subassembly_id": group.get("subassembly_id", "A000"),
                 "source_name": group.get("source_name", "unknown"),
+                "component_name": group.get("component_name", group.get("source_name", "unknown")),
                 "manual_review_required": group.get("manual_review_required", False),
             }
         )

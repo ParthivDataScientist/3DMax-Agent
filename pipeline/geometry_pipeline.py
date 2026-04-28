@@ -217,6 +217,57 @@ def write_payload_to_file(output_path: Path, payload: dict[str, Any]) -> None:
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def parse_obj_named_meshes(obj_path: Path) -> list[tuple[str, trimesh.Trimesh]]:
+    """Build one mesh per OBJ object/group block when names are available."""
+    vertices: list[tuple[float, float, float]] = []
+    faces_by_name: dict[str, list[list[int]]] = defaultdict(list)
+    current_name = obj_path.stem
+
+    def parse_vertex_index(token: str) -> int:
+        raw_index = int(token.split("/")[0])
+        return raw_index - 1 if raw_index > 0 else len(vertices) + raw_index
+
+    try:
+        with obj_path.open("r", encoding="utf-8", errors="replace") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                fields = line.split()
+                record_type = fields[0].lower()
+                if record_type in {"o", "g"} and len(fields) > 1:
+                    current_name = "_".join(fields[1:])
+                elif record_type == "v" and len(fields) >= 4:
+                    vertices.append((float(fields[1]), float(fields[2]), float(fields[3])))
+                elif record_type == "f" and len(fields) >= 4:
+                    indices = [parse_vertex_index(token) for token in fields[1:]]
+                    for offset in range(1, len(indices) - 1):
+                        faces_by_name[current_name].append([indices[0], indices[offset], indices[offset + 1]])
+    except Exception:
+        return []
+
+    named_meshes: list[tuple[str, trimesh.Trimesh]] = []
+    vertex_array = np.asarray(vertices, dtype=float)
+    for name, global_faces in faces_by_name.items():
+        if not global_faces:
+            continue
+        used_indices = sorted({index for face in global_faces for index in face})
+        if not used_indices:
+            continue
+        remap = {old_index: new_index for new_index, old_index in enumerate(used_indices)}
+        local_faces = [[remap[index] for index in face] for face in global_faces]
+        mesh = trimesh.Trimesh(
+            vertices=vertex_array[used_indices],
+            faces=np.asarray(local_faces, dtype=int),
+            process=False,
+        )
+        cleaned = clean_mesh_geometry(mesh)
+        if cleaned.vertices.size and cleaned.faces.size:
+            named_meshes.append((name, cleaned))
+
+    return named_meshes
+
+
 def load_mesh(obj_path: Path) -> tuple[trimesh.Trimesh, dict[str, Any]]:
     """Load an OBJ file and normalize it into a single Trimesh instance."""
     if not obj_path.exists():
@@ -224,6 +275,18 @@ def load_mesh(obj_path: Path) -> tuple[trimesh.Trimesh, dict[str, Any]]:
 
     if obj_path.suffix.lower() != ".obj":
         raise ExtractionError("unsupported_file_type", "This pipeline currently supports only .obj files.")
+
+    parsed_named_meshes = parse_obj_named_meshes(obj_path)
+    if parsed_named_meshes:
+        geometries = [mesh.copy() for _, mesh in parsed_named_meshes]
+        geometry_names = [name for name, _ in parsed_named_meshes]
+        mesh = geometries[0] if len(geometries) == 1 else trimesh.util.concatenate(geometries)
+        metadata = {
+            "source_type": "obj_objects",
+            "geometry_count": len(geometry_names),
+            "geometry_names": geometry_names,
+        }
+        return clean_mesh_geometry(mesh), metadata, parsed_named_meshes
 
     try:
         loaded = trimesh.load(obj_path, force="scene", skip_materials=True)
