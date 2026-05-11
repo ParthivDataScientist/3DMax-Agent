@@ -10,16 +10,16 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from bom_generator import generate_bom, group_parts, write_bom_csv, write_bom_json
-from classification import build_assembly_context, classify_object, placement_for_component
-from fabrication_drawings import (
+from .bom_generator import generate_bom, group_parts, write_bom_csv, write_bom_json
+from .classification import build_assembly_context, classify_object, placement_for_component
+from .fabrication_drawings import (
     generate_assembly_and_elevation_drawings,
     generate_part_detail_drawings,
     generate_subassembly_drawings,
     slugify,
 )
-from geometry_pipeline import ExtractionError, extract_measurements, round_number
-from materials import assign_material_and_thickness
+from .geometry_pipeline import ExtractionError, extract_measurements, round_number
+from .materials import assign_material_and_thickness
 
 
 def normalize_path_argument(path_parts: list[str]) -> Path:

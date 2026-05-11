@@ -13,7 +13,7 @@ import ezdxf
 from ezdxf import units as ezdxf_units
 import matplotlib.pyplot as plt
 
-from drawing_generator import (
+from .drawing_generator import (
     DrawingMetadata,
     DrawingStyle,
     SheetLayout,

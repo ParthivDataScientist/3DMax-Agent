@@ -12,8 +12,8 @@ from typing import Any
 import numpy as np
 import trimesh
 
-from edge_detection import extract_candidate_edges, extract_silhouette_edges, select_visible_edges
-from projection import VIEW_DEFINITIONS, build_projected_view
+from .edge_detection import extract_candidate_edges, extract_silhouette_edges, select_visible_edges
+from .projection import VIEW_DEFINITIONS, build_projected_view
 
 
 PRECISION = 6

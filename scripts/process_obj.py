@@ -9,11 +9,12 @@ import zipfile
 from pathlib import Path
 
 
-PIPELINE_DIR = Path(__file__).parent / "pipeline"
-sys.path.insert(0, str(PIPELINE_DIR))
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from FabricationPackage import build_fabrication_package  # noqa: E402
-from geometry_pipeline import ExtractionError  # noqa: E402
+from src.pipeline.FabricationPackage import build_fabrication_package
+from src.pipeline.geometry_pipeline import ExtractionError
 
 
 VALID_UNITS = ("mm", "cm", "m", "in")

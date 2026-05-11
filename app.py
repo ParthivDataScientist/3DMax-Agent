@@ -19,11 +19,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # ── Make pipeline imports available ──────────────────────────────────────────
-PIPELINE_DIR = Path(__file__).parent / "pipeline"
-sys.path.insert(0, str(PIPELINE_DIR))
-
-from FabricationPackage import build_fabrication_package  # noqa: E402
-from geometry_pipeline import ExtractionError              # noqa: E402
+from src.pipeline.FabricationPackage import build_fabrication_package
+from src.pipeline.geometry_pipeline import ExtractionError
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="3DMax Agent", version="1.0.0")

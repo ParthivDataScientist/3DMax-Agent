@@ -7,7 +7,7 @@ import json
 import shutil
 from pathlib import Path
 
-from FabricationPackage import build_fabrication_package
+from src.pipeline.FabricationPackage import build_fabrication_package
 
 
 def parse_args() -> argparse.Namespace:
